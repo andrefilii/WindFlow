@@ -43,10 +43,62 @@
 #include<persistent/db_options.hpp>
 #include<rocksdb/db.h>
 #include<rocksdb/options.h>
+#include <rocksdb/merge_operator.h>
 
 namespace wf {
 
 #define WRAP_TOKEN "_$$_"
+
+// Implementation for the merge operator
+class ListAppendOperator : public rocksdb::MergeOperator
+{
+private:
+public:
+    
+    virtual bool FullMerge(
+        const rocksdb::Slice& key,
+        const rocksdb::Slice* existing_value,
+        const std::deque<std::string>& operand_list,
+        std::string* new_value,
+        rocksdb::Logger* logger
+    ) const override 
+    {
+        if (existing_value) 
+        {
+            *new_value = existing_value->ToString();
+        }
+
+        for (auto& operand : operand_list) 
+        {
+            if (!new_value->empty())
+            {
+                // new_value->append("\n");
+            }
+            new_value->append(operand);
+            std::cout << "DB:FullMerge new value:\n" << *new_value << std::endl;
+        }
+
+        return true;
+    }
+
+    virtual bool PartialMerge(
+        const rocksdb::Slice& key,
+        const rocksdb::Slice& left_operand,
+        const rocksdb::Slice& right_operand,
+        std::string* new_value,
+        rocksdb::Logger* logger
+    ) const override
+    {
+        *new_value = left_operand.ToString() + right_operand.ToString();
+        std::cout << "DB:PartialMerge new value:\n" << *new_value << std::endl;
+        return true;
+    }
+
+    virtual const char* Name() const override
+    {
+        return "ListAppendOperatorBase";
+    }
+};
 
 // class DBHandle
 template<typename T>
@@ -121,6 +173,7 @@ public:
     {
         assert(db == nullptr);
         options = _options;
+        options.merge_operator.reset(new ListAppendOperator);
         read_options = _read_options;
         write_options = _write_options;
         if (_db == nullptr) {
@@ -220,6 +273,7 @@ public:
         for (wrapper_t &wrap: _list) {
             out = out + serialize(wrap.tuple) + " " + std::to_string(wrap.index) + "\n";
         }
+        std::cout << "DBHandle::wrapper_list_serializer\n" << out << std::endl;
         return out;
     }
 
@@ -243,6 +297,12 @@ public:
             out.push_back(new_wrap);
         }
         out.shrink_to_fit();
+
+        std::cout << "DBHandle::wrapper_list_deserializer\n" << std::endl;
+        for (auto x : out)
+        {
+            std::cout << "\t(" << x.index << "," << x.tuple.value << ")" << std::endl;
+        }
         return out;
     }
 
@@ -303,6 +363,24 @@ public:
         return outputs;
     }
 
+    std::deque<wrapper_t> get_window(std::string &_key)
+    {
+        std::string db_val;
+        std::string *memory_db_val = nullptr;
+        rocksdb::PinnableSlice pinnable_db_val(&db_val);
+        std::deque<wrapper_t> real_val;
+        rocksdb::Status key_status;
+        key_status = db->Get(read_options, db->DefaultColumnFamily(), _key, &pinnable_db_val);
+        if (key_status.ok()) {
+            if (pinnable_db_val.IsPinned()) {
+                memory_db_val = pinnable_db_val.GetSelf();
+            }
+            std::cout << "DB::get_window for key: " << _key << " VALUE:\n" << (memory_db_val ? *memory_db_val : db_val) << std::endl;
+            real_val = memory_db_val ? wrapper_list_deserializer(*memory_db_val) : wrapper_list_deserializer(db_val);
+        }
+        return real_val;
+    }
+
     // Method to put a value of type T associated with db_key
     void put(T &_val)
     {
@@ -321,6 +399,31 @@ public:
     void put(std::deque<T> &_val, key_t &_key)
     {
         db->Put(write_options, key_serializer(_key), T_list_serializer(_val));
+    }
+
+    /* MERGE OPERATION */
+    // Method to put a value of type T associated with db_key
+    void merge(T &_val, std::string &_key)
+    {
+        db->Merge(write_options, _key, serialize(_val));
+    }
+
+    // Method to put a value represented by a deque of objects of type wrapper_t associated with a fragment key
+    void merge(std::deque<wrapper_t> &_val, std::string &_key)
+    {
+        db->Merge(write_options, _key, wrapper_list_serializer(_val));
+    }
+
+    // Method to put a value represented by a deque of objects of type T associated with a stream key
+    void merge(std::deque<T> &_val, std::string &_key)
+    {
+        db->Merge(write_options, _key, T_list_serializer(_val));
+    }
+
+    // Method to delete a specific key in the db FOR WINDOW SOLUTION
+    void delete_key(std::string &_key)
+    {
+        db->Delete(write_options, _key);
     }
 
     // Method to delete a fragment key

@@ -60,6 +60,17 @@
 #include<persistent/db_handle.hpp>
 #include<persistent/p_window_structure.hpp>
 
+/* FOR WINDOWS SOLUTION */
+struct window_bounds 
+{
+    uint64_t lb;
+    uint64_t ub;
+
+    window_bounds() {}
+
+    window_bounds(uint64_t _lb, uint64_t _ub) :
+            lb(_lb), ub(_ub) {}
+};
 namespace wf {
 
 // class P_Window_Replica
@@ -94,11 +105,13 @@ private:
 
     struct Key_Descriptor // struct of a key descriptor
     {
+        std::unordered_map<std::string, std::deque<wrapper_t>> buffer_map; /* FOR WINDOWS SOLUTION */
         std::vector<win_t> wins; // open windows of this key
-        std::deque<wrapper_t> actual_memory; // in-memoty buffer of tuples used by non-incremental logic only
-        std::deque<meta_frag_t> frags; // fragments metadata of this key
-        size_t frag_keys = 0; // counter of fragments produced for this key
-        index_t min, max; // min and max indexes in the in-memory buffer
+        std::deque<result_t> res_wins; // results of open windows of this key
+        // std::deque<wrapper_t> actual_memory; // in-memoty buffer of tuples used by non-incremental logic only
+        // std::deque<meta_frag_t> frags; // fragments metadata of this key
+        // size_t frag_keys = 0; // counter of fragments produced for this key
+        // index_t min, max; // min and max indexes in the in-memory buffer
         uint64_t next_lwid = 0; // next window to be opened of this key (lwid)
         int64_t last_lwid = -1; // last window closed of this key (lwid)
         uint64_t next_input_id = 0; // identifier of the next tuple of this key
@@ -115,123 +128,273 @@ private:
     Win_Type_t winType; // window type (CB or TB)
     size_t ignored_tuples; // number of ignored tuples
     uint64_t last_time; // last received timestamp or watermark
+    
+    bool sort_enabled = false; // true if the user wants the tuple of a window to be sorted
 
 public:
-    // check_range_mm method to check that a fragment is useful for a window computation
-    inline bool check_range_mm(const wrapper_t &_minw,
-                               const wrapper_t &_maxw,
-                               const meta_frag_t &_info,
-                               bool _only_one)
+/* FRAGMENT SOLUTION */
+    // // check_range_mm method to check that a fragment is useful for a window computation
+    // inline bool check_range_mm(const wrapper_t &_minw,
+    //                            const wrapper_t &_maxw,
+    //                            const meta_frag_t &_info,
+    //                            bool _only_one)
+    // {
+    //     return _only_one ? leqt(_maxw.index, std::get<1>(_info)) : (geqt(_maxw.index, std::get<0>(_info)) && leqt(_minw.index, std::get<1>(_info)));
+    // }
+
+    // // set_mm method to set min and max indexes inside the in-memory buffer
+    // inline void set_mm(const index_t &_wt_index,
+    //                    Key_Descriptor &_kd)
+    // {
+    //     if (_kd.actual_memory.empty()) {
+    //         _kd.max = _wt_index;
+    //         _kd.min = _wt_index;
+    //         return;
+    //     }
+    //     if (geqt(_wt_index, _kd.max)) {
+    //         _kd.max = _wt_index;
+    //     }
+    //     if (leqt(_wt_index, _kd.min)) {
+    //         _kd.min = _wt_index;
+    //     }
+    // }
+    //
+    // void insert(wrapper_t &&_wt,
+    //             Key_Descriptor &_kd,
+    //             key_t &_my_key)
+    // {
+    //     if (_kd.actual_memory.size() + 1 > n_max_elements) {
+    //         size_t new_frag_id = _kd.frag_keys++;
+    //         meta_frag_t meta(_kd.min, _kd.max, new_frag_id);
+    //         _kd.frags.push_back(meta);
+    //         mydb_wrappers->put(_kd.actual_memory, _my_key, new_frag_id);
+    //         _kd.actual_memory.clear();
+    //     }
+    //     set_mm(_wt.index, _kd); // update min/max new fragment
+    //     _kd.actual_memory.push_back(std::move(_wt));
+    // }
+    // 
+    // void insert(const wrapper_t &_wt,
+    //             Key_Descriptor &_kd,
+    //             key_t &_my_key)
+    // {
+    //     if (_kd.actual_memory.size() + 1 > n_max_elements) {
+    //         size_t new_frag_id = _kd.frag_keys++;
+    //         meta_frag_t meta(_kd.min, _kd.max, new_frag_id);
+    //         _kd.frags.push_front(meta);
+    //         mydb_wrappers->put(_kd.actual_memory, _my_key, new_frag_id);
+    //         _kd.actual_memory.clear();
+    //     }
+    //     set_mm(_wt.index, _kd); // update min/max new fragment
+    //     _kd.actual_memory.push_back(_wt);
+    // }
+
+    // // method to purge all tuples older than _wt
+    // size_t purge(const wrapper_t &_wt,
+    //              Key_Descriptor &_kd,
+    //              key_t &_my_key)
+    // {
+    //     size_t sum = 0;
+    //     if (compare_func_index(_kd.max, _wt.index)) {
+    //         sum += _kd.actual_memory.size();
+    //         _kd.actual_memory.clear();
+    //     }
+    //     if (_kd.frags.empty()) {
+    //         return sum;
+    //     }
+    //     for (auto &info: _kd.frags) {
+    //         if (compare_func_index(std::get<1>(info), _wt.index)) {
+    //             mydb_wrappers->delete_key(_my_key, std::get<2>(info));
+    //             std::get<2>(info) = -1;
+    //             sum += n_max_elements;
+    //         }
+    //     }
+    //     auto erased_it = std::remove_if(_kd.frags.begin(), _kd.frags.end(), [](meta_frag_t &x) { return std::get<2>(x) == (size_t)-1; });
+    //     _kd.frags.erase(erased_it, _kd.frags.end());
+    //     return sum;
+    // }
+    //
+    // method to get the history of tuples useful for computing a windows
+    // std::deque<wrapper_t> get_history_buffer(const wrapper_t &_w1,
+    //                                          const wrapper_t &_w2,
+    //                                          bool _from_w1_to_end,
+    //                                          Key_Descriptor &_kd,
+    //                                          key_t &_my_key)
+    // {
+    //     std::deque<wrapper_t> final_range;
+    //     meta_frag_t mem_infos(_kd.min, _kd.max, 0);
+    //     if (check_range_mm(_w1, _w2, mem_infos, _from_w1_to_end)) {
+    //         // for (wrapper_t &wrap: _kd.actual_memory) {
+    //         //    final_range.push_back(wrap);
+    //         // }
+    //         final_range.insert(final_range.end(), _kd.actual_memory.begin(), _kd.actual_memory.end());
+    //     }
+    //     for (auto &info: _kd.frags) {
+    //         if (check_range_mm(_w1, _w2, info, _from_w1_to_end)) {
+    //             std::deque<wrapper_t> to_push = mydb_wrappers->get_list_frag(_my_key, std::get<2>(info));
+    //             // for (wrapper_t &wrap: to_push) {
+    //             //    final_range.push_back(std::move(wrap));
+    //             // }
+    //             final_range.insert(final_range.end(), std::make_move_iterator(to_push.begin()), std::make_move_iterator(to_push.end()));
+    //         }
+    //     }
+    //     std::sort(final_range.begin(), final_range.end(), compare_func); // sorting the archive before passing to the user function (NIC)
+    //     return final_range;
+    // }
+
+/* WINDOWS SOLUTION */
+    std::string key_db_extr(const window_bounds &window_bound, key_t &_my_key)
     {
-        return _only_one ? leqt(_maxw.index, std::get<1>(_info)) : (geqt(_maxw.index, std::get<0>(_info)) && leqt(_minw.index, std::get<1>(_info)));
+        return std::to_string(window_bound.lb) + "_" + std::to_string(window_bound.ub) + "_" + std::to_string(_my_key);
     }
 
-    // set_mm method to set min and max indexes inside the in-memory buffer
-    inline void set_mm(const index_t &_wt_index,
-                       Key_Descriptor &_kd)
+
+    //method to get the windows of the tuple based on the timestamp
+    std::vector<window_bounds> get_tuple_windows(wrapper_t wt)
     {
-        if (_kd.actual_memory.empty()) {
-            _kd.max = _wt_index;
-            _kd.min = _wt_index;
-            return;
+        std::vector<window_bounds> result;
+
+        uint64_t ts = wt.index;
+
+        // the start of the last window that contains the tuple
+        uint64_t start = floor(ts / slide_len) * slide_len;
+
+        // add all windows of the tuple
+        while (true)
+        {
+            uint64_t end = start + (win_len-1);
+            if (ts <= end)
+            {
+                result.push_back({start, end});
+            } else break;
+            if (start == 0) break;
+            start -= slide_len;
         }
-        if (geqt(_wt_index, _kd.max)) {
-            _kd.max = _wt_index;
-        }
-        if (leqt(_wt_index, _kd.min)) {
-            _kd.min = _wt_index;
-        }
+
+        return result;
     }
 
-    // method to insert a new tuple in the in-memory buffer
+
+    // method to insert a new tuple in the correct window buffer
+    // if the tuple is present in different windows, it's duplicated
     void insert(wrapper_t &&_wt,
                 Key_Descriptor &_kd,
                 key_t &_my_key)
     {
-        if (_kd.actual_memory.size() + 1 > n_max_elements) {
-            size_t new_frag_id = _kd.frag_keys++;
-            meta_frag_t meta(_kd.min, _kd.max, new_frag_id);
-            _kd.frags.push_back(meta);
-            mydb_wrappers->put(_kd.actual_memory, _my_key, new_frag_id);
-            _kd.actual_memory.clear();
+        auto windows = get_tuple_windows(_wt);
+
+        std::cout << "PW::insert CALLED tuple with ts " << _wt.index << " is in " << windows.size() << " windows for key " << _my_key << std::endl;
+
+        for(auto window_bound : windows)
+        {
+            std::string key = key_db_extr(window_bound, _my_key);
+            
+            std::deque<wrapper_t> &buffer = _kd.buffer_map[key];
+
+            std::cout << "PW::insert key->" << key << " size->" << buffer.size() << std::endl;
+
+            if (buffer.size() + 1 > n_max_elements) {
+                mydb_wrappers->merge(buffer, key);
+                buffer.clear();
+                std::cout << "PW::insert FLUSH for key " << key << std::endl;
+            }
+            buffer.push_back(std::move(_wt));
         }
-        set_mm(_wt.index, _kd); // update min/max new fragment
-        _kd.actual_memory.push_back(std::move(_wt));
     }
 
-    // method to insert a new tuple in the in-memory buffer
+
+    // method to insert a new tuple in the correct window buffer
     void insert(const wrapper_t &_wt,
                 Key_Descriptor &_kd,
                 key_t &_my_key)
     {
-        if (_kd.actual_memory.size() + 1 > n_max_elements) {
-            size_t new_frag_id = _kd.frag_keys++;
-            meta_frag_t meta(_kd.min, _kd.max, new_frag_id);
-            _kd.frags.push_front(meta);
-            mydb_wrappers->put(_kd.actual_memory, _my_key, new_frag_id);
-            _kd.actual_memory.clear();
-        }
-        set_mm(_wt.index, _kd); // update min/max new fragment
-        _kd.actual_memory.push_back(_wt);
-    }
+        std::cout << "PW::insert CONST CALLED" << std::endl;
 
-    // method to purge all tuples older than _wt
-    size_t purge(const wrapper_t &_wt,
-                 Key_Descriptor &_kd,
-                 key_t &_my_key)
-    {
-        size_t sum = 0;
-        if (compare_func_index(_kd.max, _wt.index)) {
-            sum += _kd.actual_memory.size();
-            _kd.actual_memory.clear();
-        }
-        if (_kd.frags.empty()) {
-            return sum;
-        }
-        for (auto &info: _kd.frags) {
-            if (compare_func_index(std::get<1>(info), _wt.index)) {
-                mydb_wrappers->delete_key(_my_key, std::get<2>(info));
-                std::get<2>(info) = -1;
-                sum += n_max_elements;
+        auto windows = get_tuple_windows(_wt);
+
+        for(auto window_bound : windows)
+        {
+            std::string key = key_db_extr(window_bound, _my_key);
+            
+            std::deque<wrapper_t> &buffer = _kd.buffer_map[key];
+
+            if (buffer.size() + 1 > n_max_elements) {
+                mydb_wrappers->merge(buffer, key);
+                buffer.clear();
             }
+            buffer.push_back(_wt);
         }
-        auto erased_it = std::remove_if(_kd.frags.begin(), _kd.frags.end(), [](meta_frag_t &x) { return std::get<2>(x) == (size_t)-1; });
-        _kd.frags.erase(erased_it, _kd.frags.end());
-        return sum;
     }
 
-    // method to get the history of tuples useful for computing a windows
-    std::deque<wrapper_t> get_history_buffer(const wrapper_t &_w1,
-                                             const wrapper_t &_w2,
-                                             bool _from_w1_to_end,
-                                             Key_Descriptor &_kd,
-                                             key_t &_my_key)
+
+    void purge(const window_bounds &_wb,
+               Key_Descriptor &_kd,
+               key_t &_my_key)
     {
+        // create the key to use to identify the window
+        std::string key = key_db_extr(_wb, _my_key);
+        // get the buffer associated with the window
+        bool erased = _kd.buffer_map.erase(key) != 0;
+        if (erased)
+        {
+            std::cout << "PW::purge buffer succefully erased for key " << key << std::endl;
+        }
+
+        mydb_wrappers->delete_key(key);
+    }
+
+
+    std::deque<wrapper_t> get_window(const window_bounds &_wb, Key_Descriptor &_kd, key_t &_my_key)
+    {
+        // deque for the response
         std::deque<wrapper_t> final_range;
-        meta_frag_t mem_infos(_kd.min, _kd.max, 0);
-        if (check_range_mm(_w1, _w2, mem_infos, _from_w1_to_end)) {
-            // for (wrapper_t &wrap: _kd.actual_memory) {
-            //    final_range.push_back(wrap);
-            // }
-            final_range.insert(final_range.end(), _kd.actual_memory.begin(), _kd.actual_memory.end());
+
+        // create the key to use to identify the window
+        std::string key = key_db_extr(_wb, _my_key);
+        // get the buffer associated with the window
+        auto it = _kd.buffer_map.find(key);
+        if (it != _kd.buffer_map.end() && !it->second.empty())
+        {
+            // if the buffer exists and contains something add the elements in the response
+            std::cout << "PW::get_window BUFFER FOUND for key " << key << std::endl << " with no. tuple " << it->second.size() << std::endl;
+            final_range.insert(final_range.end(), it->second.begin(), it->second.end());
+        } else {
+            std::cout << "PW::get_window BUFFER NOT FOUND for key " << key << std::endl;
         }
-        for (auto &info: _kd.frags) {
-            if (check_range_mm(_w1, _w2, info, _from_w1_to_end)) {
-                std::deque<wrapper_t> to_push = mydb_wrappers->get_list_frag(_my_key, std::get<2>(info));
-                // for (wrapper_t &wrap: to_push) {
-                //    final_range.push_back(std::move(wrap));
-                // }
-                final_range.insert(final_range.end(), std::make_move_iterator(to_push.begin()), std::make_move_iterator(to_push.end()));
-            }
+        // get the window saved on the db and insert the tuples in the response
+        std::deque<wrapper_t> to_push = mydb_wrappers->get_window(key);
+        final_range.insert(final_range.end(), std::make_move_iterator(to_push.begin()), std::make_move_iterator(to_push.end()));
+        if (sort_enabled)
+        {
+            // if the user wants, the tuple can be sorted
+            std::sort(final_range.begin(), final_range.end(), compare_func);
         }
-        std::sort(final_range.begin(), final_range.end(), compare_func); // sorting the archive before passing to the user function (NIC)
+
+        std::cout << "PW::get_window WINDOW COMPLETED:" << std::endl;
+        for (auto x : final_range)
+        {
+            std::cout << "\t<" << x.index << "," << x.tuple.value << ">" << std::endl;
+        }
+
         return final_range;
     }
 
     // getEnd method
-    input_iterator_t getEnd(Key_Descriptor &_kd)
+    input_iterator_t getEnd(const window_bounds &_wb,
+                            Key_Descriptor &_kd, 
+                            key_t &_my_key)
     {
-        return (_kd.actual_memory).end();
+        std::string key = key_db_extr(_wb, _my_key);
+
+        auto it = _kd.buffer_map.find(key);
+        if (it != _kd.buffer_map.end())
+        {
+            // buffer exists, return the end
+            return it->second.end();
+        }
+        // TODO cosa ritorna se non esiste il buffer? crea il buffer sul momento? o se viene chiamata questa funzione sicuramente esiste?
+        std::deque<wrapper_t> x; // TODO rimuovere o cambiare
+        return x.end();
     }
 
     // Constructor
@@ -252,7 +415,8 @@ public:
                      uint64_t _win_len,
                      uint64_t _slide_len,
                      uint64_t _lateness,
-                     Win_Type_t _winType):
+                     Win_Type_t _winType,
+                     bool _sort_enabled):
                      Basic_Replica(_opName, _context, _closing_func, true),
                      func(_func),
                      key_extr(_key_extr),
@@ -262,7 +426,8 @@ public:
                      lateness(_lateness),
                      winType(_winType),
                      ignored_tuples(0),
-                     last_time(0)
+                     last_time(0),
+                     sort_enabled(_sort_enabled)
     {
         _dbpath = _sharedDb ? _dbpath + "_shared" : _dbpath;
         if constexpr (isNonIncNonRiched || isNonIncRiched) {
@@ -376,6 +541,7 @@ public:
                        uint64_t _timestamp,
                        uint64_t _watermark)
     {
+        std::cout << "PW::process_input CALLED ts:" << _timestamp << " wm:" << _watermark << " t:" << _tuple.value << std::endl;
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
@@ -467,17 +633,19 @@ public:
                 if ((winType == Win_Type_t::CB) || (this->execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
                     std::optional<wrapper_t> t_s = win.getFirstTuple();
                     std::optional<wrapper_t> t_e = win.getLastTuple();
+                    window_bounds wb{win.getLWID()*slide_len, win.getLWID()*slide_len+win_len-1};
+                    std::cout << "PW::process_input FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << win.getLWID() << " gwid:" << win.getGWID() << std::endl; 
                     if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
                         std::pair<input_iterator_t, input_iterator_t> its;
                         std::deque<wrapper_t> history_buffer;
                         if (!t_s) { // empty window
-                            its.first = getEnd(key_d);
-                            its.second = getEnd(key_d);
+                            its.first = getEnd(wb, key_d, key);
+                            its.second = getEnd(wb, key_d, key);
                         }
                         else { // non-empty window
-                            history_buffer = get_history_buffer(*t_s, *t_e, false, key_d, key);
-                            its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
-                            its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
+                            history_buffer = get_window(wb, key_d, key);
+                            its.first = history_buffer.begin();
+                            its.second = history_buffer.end();
                         }
                         Iterable<tuple_t> iter(its.first, its.second);
                         result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
@@ -489,7 +657,7 @@ public:
                             func(iter, res, this->context);
                         }
                         if (t_s) { // purge tuples from the archive
-                            purge(*t_s, key_d, key);
+                            purge(wb, key_d, key);
                         }
                         cnt_fired++;
                         key_d.last_lwid++;
@@ -539,22 +707,25 @@ public:
                 if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
                     std::optional<wrapper_t> t_s = win.getFirstTuple();
                     std::optional<wrapper_t> t_e = win.getLastTuple();
+                    window_bounds wb{win.getLWID()*slide_len, win.getLWID()*slide_len+win_len-1};
+                    std::cout << "PW::eosnotify FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << win.getLWID() << " gwid:" << win.getGWID() << std::endl; 
                     std::pair<input_iterator_t, input_iterator_t> its;
                     std::deque<wrapper_t> history_buffer;
                     if (!t_s) { // empty window
-                        its.first = getEnd(key_d);
-                        its.second = getEnd(key_d);
+                        its.first = getEnd(wb, key_d, key);
+                        its.second = getEnd(wb, key_d, key);
                     }
-                    else { // non-empty window
+                    else { // non-empty window // TODO sbagliato per mettere qualcosa, rivedere !!!!!!!
                         if (!t_e) {
-                            history_buffer = get_history_buffer(*t_s, *t_s, true, key_d, key);
-                            its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
+                            // se non esiste l'upper bound come funziona il recupero?
+                            history_buffer = get_window(wb, key_d, key);
+                            its.first = history_buffer.begin();
                             its.second = history_buffer.end();
                         }
                         else {
-                            history_buffer = get_history_buffer(*t_s, *t_e, false, key_d, key);
-                            its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
-                            its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
+                            history_buffer = get_window(wb, key_d, key);
+                            its.first = history_buffer.begin();
+                            its.second = history_buffer.end();
                         }
                     }
                     Iterable<tuple_t> iter(its.first, its.second);
