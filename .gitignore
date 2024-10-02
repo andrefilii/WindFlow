@@ -1,6 +1,11 @@
 # .DS_Store are banished
 .DS_Store
 
+.vscode
+build
+
+tests/rocksdb_tests/solution_4_tests/test_1
+
 cmake-build-debug
 
 /results_tests

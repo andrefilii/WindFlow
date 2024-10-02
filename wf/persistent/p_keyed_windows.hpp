@@ -81,6 +81,8 @@ private:
     using wrapper_t = wrapper_tuple_t<decltype(get_tuple_t_Win(func))>;
     static constexpr op_type_t op_type = op_type_t::WIN;
 
+    bool sort_enabled = false;
+
     // Configure the P_Keyed_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
     {
@@ -215,14 +217,16 @@ public:
                     uint64_t _win_len,
                     uint64_t _slide_len,
                     uint64_t _lateness,
-                    Win_Type_t _winType):
+                    Win_Type_t _winType,
+                    bool _sort_enabled):
                     Basic_Operator(_parallelism, _name, Routing_Mode_t::KEYBY, _outputBatchSize),
                     func(_func),
                     key_extr(_key_extr),
                     win_len(_win_len),
                     slide_len(_slide_len),
                     lateness(_lateness),
-                    winType(_winType)
+                    winType(_winType),
+                    sort_enabled(_sort_enabled)
     {
         if (win_len == 0 || slide_len == 0) { // check the validity of the windowing parameters
             std::cerr << RED << "WindFlow Error: P_Keyed_Windows used with window length or slide equal to zero" << DEFAULT_COLOR << std::endl;
@@ -248,7 +252,8 @@ public:
                                                                                 win_len,
                                                                                 slide_len,
                                                                                 lateness,
-                                                                                winType));
+                                                                                winType,
+                                                                                sort_enabled));
         }
         assert(this->parallelism > 0);
         // initialize the internal DB of the replicas
