@@ -37,6 +37,7 @@
       <config projectName="WindFlow-Tests" targetName="test_graph_5" />
       <config projectName="WindFlow-Tests" targetName="test_rocksdb_7" />
       <config projectName="WindFlow-Tests" targetName="graph_tests" />
+      <config projectName="WindFlow-Tests" targetName="test_window_1" />
       <config projectName="WindFlow-Tests" targetName="test_rocksdb_1" />
       <config projectName="WindFlow-Tests" targetName="test_win_pw_tb" />
       <config projectName="WindFlow-Tests" targetName="test_split_3" />
@@ -148,7 +149,7 @@
     "RunOnceActivity.west.config.association.type.startup.service": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "dev",
+    "git-widget-placeholder": "Rebasing persistent/soluzione-4",
     "last_opened_file_path": "/disc1/homes/filippi/libs/WindFlow/tests/rocksdb_tests",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -169,7 +170,7 @@
       <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.08619186" />
       <window_info id="Commit" order="1" weight="0.08619186" />
       <window_info id="VcsChanges" order="2" weight="0.08619186" />
-      <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
+      <window_info id="Structure" order="3" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Database Changes" />
       <window_info anchor="bottom" id="TypeScript" />
       <window_info anchor="bottom" id="Python Packages" />
@@ -187,7 +188,7 @@
       <window_info anchor="bottom" id="Messages" order="7" weight="0.26975572" />
       <window_info active="true" anchor="bottom" id="Run" order="8" visible="true" weight="0.26975572" />
       <window_info anchor="bottom" id="Build" order="9" weight="0.26975572" />
-      <window_info anchor="bottom" id="Find" order="9" weight="0.3301006" />
+      <window_info anchor="bottom" id="Find" order="10" weight="0.3301006" />
       <window_info anchor="right" id="make" side_tool="true" />
       <window_info anchor="right" id="Coverage" side_tool="true" />
       <window_info anchor="right" id="Python Console" />
