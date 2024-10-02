@@ -5,6 +5,7 @@
 build
 
 tests/rocksdb_tests/solution_4_tests/test_1
+tests/rocksdb_tests/solution_4_tests/output.txt
 
 cmake-build-debug
 
