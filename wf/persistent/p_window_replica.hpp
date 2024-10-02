@@ -715,7 +715,7 @@ public:
                         its.first = getEnd(wb, key_d, key);
                         its.second = getEnd(wb, key_d, key);
                     }
-                    else { // non-empty window // TODO sbagliato per mettere qualcosa, rivedere !!!!!!!
+                    else { // non-empty window
                         if (!t_e) {
                             // se non esiste l'upper bound come funziona il recupero?
                             history_buffer = get_window(wb, key_d, key);
