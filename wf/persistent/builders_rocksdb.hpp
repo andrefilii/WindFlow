@@ -1281,6 +1281,8 @@ private:
     uint64_t lateness=0; // lateness in time units
     Win_Type_t winType=Win_Type_t::CB; // window type (CB or TB)
 
+    bool sort_enabled = false;
+
 public:
     /** 
      *  \brief Constructor
@@ -1384,6 +1386,7 @@ public:
         new_builder.slide_len = slide_len;
         new_builder.lateness = lateness;
         new_builder.winType = winType;
+        new_builder.sort_enabled = sort_enabled;
         return new_builder;
     }
 
@@ -1429,6 +1432,18 @@ public:
         result_deserialize = _result_deserialize;
         isResultFunctions = true;
         results_in_memory = false;
+        return *this;
+    }
+
+    /**
+     * \brief If true, window will be sorted when fired
+     * 
+     * \param _sort_enabled value of Boolean flag
+     */
+    auto withWindowSorting(bool _sort_enabled)
+    {
+        sort_enabled = _sort_enabled;
+
         return *this;
     }
 
@@ -1493,7 +1508,8 @@ public:
                               win_len,
                               slide_len,
                               lateness,
-                              winType);
+                              winType,
+                              sort_enabled);
     }
 };
 
