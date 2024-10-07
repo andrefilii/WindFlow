@@ -56,8 +56,6 @@ private:
     triggerer_t triggerer; // triggerer used by the window
     Win_Type_t winType; // type of the window (CB or TB)
     uint64_t num_tuples; // number of tuples raising a IN event
-    std::optional<wrapper_t> firstTuple; // optional containing the first wrapped tuple
-    std::optional<wrapper_t> lastTuple; // optional containing the last wrapped tuple
     uint64_t result_timestamp; // timestamp of the window result
 
 public:
@@ -93,8 +91,7 @@ public:
             win_event_t event = triggerer(_index); // evaluate the triggerer
             if (event == win_event_t::IN) {
                 num_tuples++;
-                if (!firstTuple) {
-                    firstTuple = std::make_optional(wrapper_tuple_t(_tuple, _index)); // save the input wrapped tuple
+                if (num_tuples == 1) {
                     result_timestamp = _ts; // set the result timestamp to be the one of the input wrapped tuple
                 }
                 else {
@@ -104,9 +101,6 @@ public:
                 }
             }
             else if (event == win_event_t::FIRED) {
-                if (!lastTuple) {
-                    lastTuple = std::make_optional(wrapper_tuple_t(_tuple, _index)); // save the input wrapped tuple
-                }
             }
             else {
                 abort(); // OLD event is not possible with in-order streams
@@ -118,39 +112,9 @@ public:
             win_event_t event = triggerer(_index); // evaluate the triggerer
             if (event == win_event_t::IN) {
                 num_tuples++;
-                if (!firstTuple) {
-                    firstTuple = std::make_optional(wrapper_tuple_t(_tuple, _index)); // save the input wrapped tuple
-                }
-                else {
-                    if (_index < firstTuple->index) {
-                        firstTuple = std::make_optional(wrapper_tuple_t(_tuple, _index)); // save the oldest tuple returning IN
-                    }
-                }
-            }
-            else if (event == win_event_t::FIRED) {
-                if (!lastTuple) {
-                    lastTuple = std::make_optional(wrapper_tuple_t(_tuple, _index)); // save the input wrapped tuple
-                }
-                else {
-                    if (_index < lastTuple->index) {
-                        lastTuple = std::make_optional(wrapper_tuple_t(_tuple, _index)); // save the oldest tuple returning FIRED
-                    }
-                }
             }
             return event;
         }
-    }
-
-    // Get an optional to the first wrapped tuple
-    std::optional<wrapper_t> getFirstTuple() const
-    {
-        return firstTuple;
-    }
-
-    // method to get an optional to the last wrapped tuple
-    std::optional<wrapper_t> getLastTuple() const
-    {
-        return lastTuple;
     }
 
     // Get the key attribute of the window

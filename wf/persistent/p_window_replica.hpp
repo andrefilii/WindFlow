@@ -283,7 +283,7 @@ public:
     {
         auto windows = get_tuple_windows(_wt);
 
-        std::cout << "PW::insert CALLED tuple with ts " << _wt.index << " is in " << windows.size() << " windows for key " << _my_key << std::endl;
+        std::cout << "PW::insert CALLED tuple with idx " << _wt.index << " is in " << windows.size() << " windows for key " << _my_key << std::endl;
 
         for(auto window_bound : windows)
         {
@@ -291,14 +291,15 @@ public:
             
             std::deque<wrapper_t> &buffer = _kd.buffer_map[key];
 
-            std::cout << "PW::insert key->" << key << " size->" << buffer.size() << std::endl;
+            std::cout << "PW::insert key->" << key << " buffer_size_BEFORE->" << buffer.size() << std::endl;
 
             if (buffer.size() + 1 > n_max_elements) {
+                std::cout << "PW::insert FLUSH for key " << key << std::endl;
                 mydb_wrappers->merge(buffer, key);
                 buffer.clear();
-                std::cout << "PW::insert FLUSH for key " << key << std::endl;
             }
             buffer.push_back(std::move(_wt));
+            std::cout << "PW::insert key->" << key << " buffer_size_AFTER->" << buffer.size() << std::endl;
         }
     }
 
@@ -392,9 +393,8 @@ public:
             // buffer exists, return the end
             return it->second.end();
         }
-        // TODO cosa ritorna se non esiste il buffer? crea il buffer sul momento? o se viene chiamata questa funzione sicuramente esiste?
-        std::deque<wrapper_t> x; // TODO rimuovere o cambiare
-        return x.end();
+        std::deque<wrapper_t> temp;
+        return temp.end();
     }
 
     // Constructor
@@ -541,7 +541,7 @@ public:
                        uint64_t _timestamp,
                        uint64_t _watermark)
     {
-        std::cout << "PW::process_input CALLED ts:" << _timestamp << " wm:" << _watermark << " t:" << _tuple.value << std::endl;
+        std::cout << "PW::process_input CALLED idx:" << _timestamp << " wm:" << _watermark << " t:" << _tuple.value << std::endl;
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
@@ -631,21 +631,22 @@ public:
             }
             else if (event == win_event_t::FIRED) { // window is fired
                 if ((winType == Win_Type_t::CB) || (this->execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
-                    std::optional<wrapper_t> t_s = win.getFirstTuple();
-                    std::optional<wrapper_t> t_e = win.getLastTuple();
-                    window_bounds wb{win.getLWID()*slide_len, win.getLWID()*slide_len+win_len-1};
-                    std::cout << "PW::process_input FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << win.getLWID() << " gwid:" << win.getGWID() << std::endl; 
+                    uint64_t lwid = win.getLWID(); // local id of window to calculate boundaries
+                    uint64_t win_start = lwid*slide_len;
+                    bool isEmpty = win.getSize() <= 0; // if win is empty i just return an empty iterator
+                    window_bounds wb{win_start, win_start+win_len-1};
+                    std::cout << "PW::process_input FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << lwid << " isEmpty:"<< isEmpty << std::endl; 
                     if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
                         std::pair<input_iterator_t, input_iterator_t> its;
-                        std::deque<wrapper_t> history_buffer;
-                        if (!t_s) { // empty window
+                        std::deque<wrapper_t> window;
+                        if (isEmpty) { // empty window
                             its.first = getEnd(wb, key_d, key);
-                            its.second = getEnd(wb, key_d, key);
+                            its.second = its.first;
                         }
                         else { // non-empty window
-                            history_buffer = get_window(wb, key_d, key);
-                            its.first = history_buffer.begin();
-                            its.second = history_buffer.end();
+                            window = get_window(wb, key_d, key);
+                            its.first = window.begin();
+                            its.second = window.end();
                         }
                         Iterable<tuple_t> iter(its.first, its.second);
                         result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
@@ -656,7 +657,7 @@ public:
                             (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
                             func(iter, res, this->context);
                         }
-                        if (t_s) { // purge tuples from the archive
+                        if (!isEmpty) { // purge tuples from the archive
                             purge(wb, key_d, key);
                         }
                         cnt_fired++;
@@ -705,28 +706,21 @@ public:
             auto &wins = key_d.wins;
             for (auto &win: wins) { // iterate over all the windows of the key
                 if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
-                    std::optional<wrapper_t> t_s = win.getFirstTuple();
-                    std::optional<wrapper_t> t_e = win.getLastTuple();
-                    window_bounds wb{win.getLWID()*slide_len, win.getLWID()*slide_len+win_len-1};
-                    std::cout << "PW::eosnotify FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << win.getLWID() << " gwid:" << win.getGWID() << std::endl; 
+                    uint64_t lwid = win.getLWID(); // local id of window to calculate boundaries
+                    uint64_t win_start = lwid*slide_len;
+                    bool isEmpty = win.getSize() <= 0; // if win is empty i just return an empty iterator
+                    window_bounds wb{win_start, win_start+win_len-1};
+                    std::cout << "PW::eosnotify FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << lwid << std::endl; 
                     std::pair<input_iterator_t, input_iterator_t> its;
-                    std::deque<wrapper_t> history_buffer;
-                    if (!t_s) { // empty window
+                    std::deque<wrapper_t> window;
+                    if (isEmpty) { // empty window
                         its.first = getEnd(wb, key_d, key);
-                        its.second = getEnd(wb, key_d, key);
+                        its.second = its.first;
                     }
                     else { // non-empty window
-                        if (!t_e) {
-                            // se non esiste l'upper bound come funziona il recupero?
-                            history_buffer = get_window(wb, key_d, key);
-                            its.first = history_buffer.begin();
-                            its.second = history_buffer.end();
-                        }
-                        else {
-                            history_buffer = get_window(wb, key_d, key);
-                            its.first = history_buffer.begin();
-                            its.second = history_buffer.end();
-                        }
+                        window = get_window(wb, key_d, key);
+                        its.first = window.begin();
+                        its.second = window.end();
                     }
                     Iterable<tuple_t> iter(its.first, its.second);
                     result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
