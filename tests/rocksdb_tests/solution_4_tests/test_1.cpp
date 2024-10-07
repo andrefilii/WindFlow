@@ -14,8 +14,8 @@ int main(void)
     /* parameters (static for now) */
     size_t stream_len = 100;
     size_t win_len = 10;
-    size_t win_slide = 10;
-    size_t n_keys = 1;
+    size_t win_slide = 1;
+    size_t n_keys = 2;
     size_t source_degree = 1;
     size_t kw_degree = 1;
     size_t sink_degree = 1;
