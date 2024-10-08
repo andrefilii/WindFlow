@@ -1,5 +1,5 @@
-/* how to compile: 
-    g++ -std=c++17 -g test_1.cpp -o test_1 -I${WINDFLOW_INCLUDE_PATH} -I${FASTFLOW_INCLUDE_PATH} -lrocksdb -O3 
+/* how to compile:
+    g++ -std=c++17 -g test_1.cpp -o test_1 -I${WINDFLOW_INCLUDE_PATH} -I${FASTFLOW_INCLUDE_PATH} -lrocksdb -O3
 */
 
 #include <windflow.hpp>
@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
     };
     int option_index = 0;
     /* parameters */
+    bool persistent = true;
     bool tb_win = true;
     size_t stream_len = 1000;
     size_t win_len = 100;
@@ -32,7 +33,7 @@ int main(int argc, char *argv[])
     // initialize global variable
     global_sum = 0;
 
-    while ((option = getopt_long(argc, argv, "l:k:w:s:n:", long_options, &option_index)) != -1) {
+    while ((option = getopt_long(argc, argv, "l:k:w:s:n:p:", long_options, &option_index)) != -1) {
         switch (option) {
             case 'l': stream_len = atoi(optarg);
             break;
@@ -44,6 +45,12 @@ int main(int argc, char *argv[])
             break;
             case 'n': op_degree = atoi(optarg);
             break;
+            case 'p': {
+                std::string p_arg = optarg;
+                if (p_arg == "true") persistent = true;
+                else if (p_arg == "false") persistent = false;
+                break;
+            }
             case 0:
                 if (std::string(long_options[option_index].name) == "cb") {
                     tb_win = false;
@@ -90,20 +97,32 @@ int main(int argc, char *argv[])
     MultiPipe &mp = graph.add_source(source);
 
     Win_Functor_NINC win_functor;
-    auto builder = P_Keyed_Windows_Builder(win_functor)
+    if (persistent) {
+        auto builder = P_Keyed_Windows_Builder(win_functor)
                                     .withName("p_keyed_wins")
-                                    .withWindowSorting(true)
                                     .withParallelism(op_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withResultSerializerAndDeserializer(result_serializer, result_deserializer)
                                     .setWindowBufferSizeBytes(sizeof(tuple_t)*10);
 
-    if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
-    else builder = builder.withCBWindows(win_len, win_slide);
+        if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
+        else builder = builder.withCBWindows(win_len, win_slide);
 
-    auto kwin = builder.build();
-    mp.add(kwin);
+        auto kwin = builder.build();
+        mp.add(kwin);
+    } else {
+        auto builder = Keyed_Windows_Builder(win_functor)
+                                    .withName("p_keyed_wins")
+                                    .withParallelism(op_degree)
+                                    .withKeyBy([](const tuple_t &t) -> size_t { return t.key; });
+
+        if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
+        else builder = builder.withCBWindows(win_len, win_slide);
+
+        auto kwin = builder.build();
+        mp.add(kwin);
+    }
 
     WinSink_Functor sink_functor;
     Sink sink = Sink_Builder(sink_functor)
