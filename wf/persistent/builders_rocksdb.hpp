@@ -1272,7 +1272,7 @@ private:
     deserialize_result_func_t result_deserialize;
     keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
     bool isKeyBySet = false; // true if a key extractor has been provided
-    size_t frag_bytes = sizeof(tuple_t) * 16; // size in bytes of each archive fragment of the stream
+    size_t buffer_bytes = sizeof(tuple_t) * 16; // size in bytes of each archive fragment of the stream
     bool results_in_memory = true; // flag stating if results must be kepts in memory or on RocksDB
     bool isTupleFunctions = false; // flag stating if the tuple serializer/deserializer have been provided
     bool isResultFunctions = false; // flag stating if the result serializer/deserializer have been provided
@@ -1380,7 +1380,7 @@ public:
         new_builder.isKeyBySet = true;
         new_builder.isTupleFunctions = isTupleFunctions;
         new_builder.isResultFunctions = isResultFunctions;
-        new_builder.frag_bytes = frag_bytes;
+        new_builder.buffer_bytes = buffer_bytes;
         new_builder.results_in_memory = results_in_memory;
         new_builder.win_len = win_len;
         new_builder.slide_len = slide_len;
@@ -1391,14 +1391,14 @@ public:
     }
 
     /** 
-     *  \brief Set the size in bytes of each archive fragment of the stream
+     *  \brief Set the size in bytes of each window's buffer in memory
      *  
-     *  \param _frag_bytes size in bytes
+     *  \param _buffer_bytes size in bytes
      *  \return a reference to the builder object
      */ 
-    auto &setFragSizeBytes(size_t _frag_bytes)
+    auto &setWindowBufferSizeBytes(size_t _buffer_bytes)
     {
-        frag_bytes = _frag_bytes;
+        buffer_bytes = _buffer_bytes;
         return *this;
     }
 
@@ -1504,7 +1504,7 @@ public:
                               this->read_options,
                               this->write_options,
                               results_in_memory,
-                              frag_bytes,
+                              buffer_bytes,
                               win_len,
                               slide_len,
                               lateness,
