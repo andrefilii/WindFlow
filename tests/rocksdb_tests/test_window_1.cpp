@@ -113,8 +113,13 @@ int main(int argc, char *argv[])
     mp.chain_sink(sink);
 
     // run the application
+    auto start = std::chrono::high_resolution_clock::now();
     graph.run();
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::micro> duration = end - start;
     cout << "Global result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+    cout << BLUE << "Execution time: " << duration.count() << " microseconds" << endl;
 
     return EXIT_SUCCESS;
 }
