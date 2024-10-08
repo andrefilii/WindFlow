@@ -282,24 +282,28 @@ public:
                 key_t &_my_key)
     {
         auto windows = get_tuple_windows(_wt);
-
+#ifdef DEBUG_MODE
         std::cout << "PW::insert CALLED tuple with idx " << _wt.index << " is in " << windows.size() << " windows for key " << _my_key << std::endl;
-
+#endif
         for(auto window_bound : windows)
         {
             std::string key = key_db_extr(window_bound, _my_key);
             
             std::deque<wrapper_t> &buffer = _kd.buffer_map[key];
-
+#ifdef DEBUG_MODE
             std::cout << "PW::insert key->" << key << " buffer_size_BEFORE->" << buffer.size() << std::endl;
-
+#endif
             if (buffer.size() + 1 > n_max_elements) {
+#ifdef DEBUG_MODE
                 std::cout << "PW::insert FLUSH for key " << key << std::endl;
+#endif
                 mydb_wrappers->merge(buffer, key);
                 buffer.clear();
             }
             buffer.push_back(std::move(_wt));
+#ifdef DEBUG_MODE
             std::cout << "PW::insert key->" << key << " buffer_size_AFTER->" << buffer.size() << std::endl;
+#endif
         }
     }
 
@@ -309,8 +313,9 @@ public:
                 Key_Descriptor &_kd,
                 key_t &_my_key)
     {
+#ifdef DEBUG_MODE
         std::cout << "PW::insert CONST CALLED" << std::endl;
-
+#endif
         auto windows = get_tuple_windows(_wt);
 
         for(auto window_bound : windows)
@@ -338,7 +343,9 @@ public:
         bool erased = _kd.buffer_map.erase(key) != 0;
         if (erased)
         {
+#ifdef DEBUG_MODE
             std::cout << "PW::purge buffer succefully erased for key " << key << std::endl;
+#endif
         }
 
         mydb_wrappers->delete_key(key);
@@ -357,10 +364,14 @@ public:
         if (it != _kd.buffer_map.end() && !it->second.empty())
         {
             // if the buffer exists and contains something add the elements in the response
+#ifdef DEBUG_MODE
             std::cout << "PW::get_window BUFFER FOUND for key " << key << std::endl << " with no. tuple " << it->second.size() << std::endl;
+#endif
             final_range.insert(final_range.end(), it->second.begin(), it->second.end());
         } else {
+#ifdef DEBUG_MODE
             std::cout << "PW::get_window BUFFER NOT FOUND for key " << key << std::endl;
+#endif
         }
         // get the window saved on the db and insert the tuples in the response
         std::deque<wrapper_t> to_push = mydb_wrappers->get_window(key);
@@ -370,13 +381,13 @@ public:
             // if the user wants, the tuple can be sorted
             std::sort(final_range.begin(), final_range.end(), compare_func);
         }
-
+#ifdef DEBUG_MODE
         std::cout << "PW::get_window WINDOW COMPLETED:" << std::endl;
         for (auto x : final_range)
         {
             std::cout << "\t<" << x.index << "," << x.tuple.value << ">" << std::endl;
         }
-
+#endif
         return final_range;
     }
 
@@ -411,7 +422,8 @@ public:
                      bool _deleteDb,
                      bool _sharedDb,
                      size_t _whoami,
-                     size_t _frag_size,
+                     bool _results_in_memory,
+                     size_t _buffer_bytes,
                      uint64_t _win_len,
                      uint64_t _slide_len,
                      uint64_t _lateness,
@@ -420,7 +432,8 @@ public:
                      Basic_Replica(_opName, _context, _closing_func, true),
                      func(_func),
                      key_extr(_key_extr),
-                     n_max_elements(_frag_size),
+                     results_in_memory(_results_in_memory),
+                     n_max_elements(size_t(_buffer_bytes / sizeof(tuple_t))), // <-- Occhio!
                      win_len(_win_len),
                      slide_len(_slide_len),
                      lateness(_lateness),
@@ -541,7 +554,9 @@ public:
                        uint64_t _timestamp,
                        uint64_t _watermark)
     {
+#ifdef DEBUG_MODE
         std::cout << "PW::process_input CALLED idx:" << _timestamp << " wm:" << _watermark << " t:" << _tuple.value << std::endl;
+#endif
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
@@ -635,7 +650,9 @@ public:
                     uint64_t win_start = lwid*slide_len;
                     bool isEmpty = win.getSize() <= 0; // if win is empty i just return an empty iterator
                     window_bounds wb{win_start, win_start+win_len-1};
-                    std::cout << "PW::process_input FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << lwid << " isEmpty:"<< isEmpty << std::endl; 
+#ifdef DEBUG_MODE
+                    std::cout << "PW::process_input FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << lwid << " isEmpty:"<< isEmpty << std::endl;
+#endif
                     if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
                         std::pair<input_iterator_t, input_iterator_t> its;
                         std::deque<wrapper_t> window;
@@ -710,7 +727,9 @@ public:
                     uint64_t win_start = lwid*slide_len;
                     bool isEmpty = win.getSize() <= 0; // if win is empty i just return an empty iterator
                     window_bounds wb{win_start, win_start+win_len-1};
-                    std::cout << "PW::eosnotify FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << lwid << std::endl; 
+#ifdef DEBUG_MODE
+                    std::cout << "PW::eosnotify FIRED window_boundaries{lb:" << wb.lb << ", ub:" << wb.ub << "} lwid:" << lwid << std::endl;
+#endif
                     std::pair<input_iterator_t, input_iterator_t> its;
                     std::deque<wrapper_t> window;
                     if (isEmpty) { // empty window
