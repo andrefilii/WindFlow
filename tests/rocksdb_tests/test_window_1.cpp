@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
     };
     int option_index = 0;
     /* parameters */
+    bool stdout_redirect = false;
     bool persistent = true;
     bool tb_win = true;
     size_t stream_len = 1000;
@@ -33,7 +34,7 @@ int main(int argc, char *argv[])
     // initialize global variable
     global_sum = 0;
 
-    while ((option = getopt_long(argc, argv, "l:k:w:s:n:p:", long_options, &option_index)) != -1) {
+    while ((option = getopt_long(argc, argv, "l:k:w:s:n:p:r", long_options, &option_index)) != -1) {
         switch (option) {
             case 'l': stream_len = atoi(optarg);
             break;
@@ -51,6 +52,9 @@ int main(int argc, char *argv[])
                 else if (p_arg == "false") persistent = false;
                 break;
             }
+            case 'r':
+                stdout_redirect = true;
+            break;
             case 0:
                 if (std::string(long_options[option_index].name) == "cb") {
                     tb_win = false;
@@ -59,10 +63,15 @@ int main(int argc, char *argv[])
                 }
             break;
             default: {
-                cout << argv[0] << " -l [stream_length] -k [n_keys] -w [win length] -s [win slide]" << endl;
+                cout << argv[0] << " -l [stream_length] -k [n_keys] -w [win length] -s [win slide] -n [op degree] -p [true | false] [-r] [--cb | --tb]" << endl;
                 exit(EXIT_SUCCESS);
             }
         }
+    }
+
+    if (stdout_redirect && !std::freopen("output.txt", "w", stdout)) {
+        cout << "Error redirecting stdout" << endl;
+        exit(EXIT_FAILURE);
     }
 
     /* serializers and deserializers*/
@@ -113,7 +122,7 @@ int main(int argc, char *argv[])
         mp.add(kwin);
     } else {
         auto builder = Keyed_Windows_Builder(win_functor)
-                                    .withName("p_keyed_wins")
+                                    .withName("keyed_wins")
                                     .withParallelism(op_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; });
 
@@ -139,6 +148,8 @@ int main(int argc, char *argv[])
     std::chrono::duration<double, std::micro> duration = end - start;
     cout << "Global result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
     cout << BLUE << "Execution time: " << duration.count() << " microseconds" << endl;
+
+    if (stdout_redirect) std::fclose(stdout);
 
     return EXIT_SUCCESS;
 }
