@@ -75,7 +75,9 @@ public:
                 // new_value->append("\n");
             }
             new_value->append(operand);
+#ifdef DEBUG_MODE
             std::cout << "DB:FullMerge new value:\n" << *new_value << std::endl;
+#endif
         }
 
         return true;
@@ -90,7 +92,9 @@ public:
     ) const override
     {
         *new_value = left_operand.ToString() + right_operand.ToString();
+#ifdef DEBUG_MODE
         std::cout << "DB:PartialMerge new value:\n" << *new_value << std::endl;
+#endif
         return true;
     }
 
@@ -273,7 +277,9 @@ public:
         for (wrapper_t &wrap: _list) {
             out = out + serialize(wrap.tuple) + " " + std::to_string(wrap.index) + "\n";
         }
+#ifdef DEBUG_MODE
         std::cout << "DBHandle::wrapper_list_serializer\n" << out << std::endl;
+#endif
         return out;
     }
 
@@ -297,12 +303,13 @@ public:
             out.push_back(new_wrap);
         }
         out.shrink_to_fit();
-
+#ifdef DEBUG_MODE
         std::cout << "DBHandle::wrapper_list_deserializer\n" << std::endl;
         for (auto x : out)
         {
             std::cout << "\t(" << x.index << "," << x.tuple.value << ")" << std::endl;
         }
+#endif
         return out;
     }
 
@@ -375,7 +382,9 @@ public:
             if (pinnable_db_val.IsPinned()) {
                 memory_db_val = pinnable_db_val.GetSelf();
             }
+#ifdef DEBUG_MODE
             std::cout << "DB::get_window for key: " << _key << " VALUE:\n" << (memory_db_val ? *memory_db_val : db_val) << std::endl;
+#endif
             real_val = memory_db_val ? wrapper_list_deserializer(*memory_db_val) : wrapper_list_deserializer(db_val);
         }
         return real_val;

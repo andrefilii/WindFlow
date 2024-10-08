@@ -22,9 +22,9 @@ int main(int argc, char *argv[])
     int option_index = 0;
     /* parameters */
     bool tb_win = true;
-    size_t stream_len = 10000;
-    size_t win_len = 1000;
-    size_t win_slide = 1000;
+    size_t stream_len = 1000;
+    size_t win_len = 100;
+    size_t win_slide = 100;
     size_t n_keys = 1;
     size_t op_degree = 1;
     size_t output_batch = 0;
@@ -97,13 +97,14 @@ int main(int argc, char *argv[])
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withResultSerializerAndDeserializer(result_serializer, result_deserializer)
-                                    .setFragSizeBytes(100);
+                                    .setWindowBufferSizeBytes(sizeof(tuple_t)*10);
 
     if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
     else builder = builder.withCBWindows(win_len, win_slide);
 
     auto kwin = builder.build();
     mp.add(kwin);
+
     WinSink_Functor sink_functor;
     Sink sink = Sink_Builder(sink_functor)
                     .withName("sink")
@@ -113,7 +114,7 @@ int main(int argc, char *argv[])
 
     // run the application
     graph.run();
-    cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+    cout << "Global result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
 
     return EXIT_SUCCESS;
 }
