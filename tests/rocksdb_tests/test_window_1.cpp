@@ -145,9 +145,14 @@ int main(int argc, char *argv[])
     graph.run();
     auto end = std::chrono::high_resolution_clock::now();
 
-    std::chrono::duration<double, std::micro> duration = end - start;
+    std::chrono::duration<double> duration = end - start;
     cout << "Global result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
-    cout << BLUE << "Execution time: " << duration.count() << " microseconds" << endl;
+    auto n_tuple_generated = stream_len*n_keys*op_degree;
+    auto runtime = duration.count();
+    cout << BLUE << "Stats:" << endl
+        << "Number of tuple generated: " << n_tuple_generated << endl
+        << "Runtime: " << runtime << endl
+        << "Throughtput (n_tuple/seconds): " << n_tuple_generated/runtime << endl;
 
     if (stdout_redirect) std::fclose(stdout);
 
