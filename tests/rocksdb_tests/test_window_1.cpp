@@ -10,6 +10,7 @@
 
 // global variable for the result
 extern atomic<long> global_sum;
+extern atomic<long> tot_tuple;
 
 int main(int argc, char *argv[])
 {
@@ -24,7 +25,8 @@ int main(int argc, char *argv[])
     bool stdout_redirect = false;
     bool persistent = true;
     bool tb_win = true;
-    size_t stream_len = 1000;
+    unsigned long app_runtime = 10 * 1000000000L; // 10 seconds
+    size_t stream_len = -1;
     size_t win_len = 100;
     size_t win_slide = 100;
     size_t n_keys = 1;
@@ -34,7 +36,7 @@ int main(int argc, char *argv[])
     // initialize global variable
     global_sum = 0;
 
-    while ((option = getopt_long(argc, argv, "l:k:w:s:n:p:r", long_options, &option_index)) != -1) {
+    while ((option = getopt_long(argc, argv, "l:k:w:s:n:p:r:f", long_options, &option_index)) != -1) {
         switch (option) {
             case 'l': stream_len = atoi(optarg);
             break;
@@ -53,6 +55,9 @@ int main(int argc, char *argv[])
                 break;
             }
             case 'r':
+                app_runtime = atoi(optarg) * 1000000000L;
+            break;
+            case 'f':
                 stdout_redirect = true;
             break;
             case 0:
@@ -98,7 +103,7 @@ int main(int argc, char *argv[])
 
     // preparation of graph
     PipeGraph graph("test_rocksdb", Execution_Mode_t::DEFAULT, (tb_win ? Time_Policy_t::EVENT_TIME : Time_Policy_t::INGRESS_TIME));
-    Source_Functor_2 source_functor(stream_len, n_keys, tb_win);
+    Source_Functor_2 source_functor(stream_len, n_keys, tb_win, app_runtime);
     Source source = Source_Builder(source_functor)
                         .withName("source")
                         .withParallelism(op_degree)
@@ -151,7 +156,7 @@ int main(int argc, char *argv[])
     auto n_tuple_generated = stream_len*n_keys*op_degree;
     auto runtime = duration.count();
     cout << BLUE << "Stats:" << endl
-        << "Number of tuple generated: " << n_tuple_generated << endl
+        << "Number of tuple generated: " << (stream_len == -1 ? tot_tuple.load() : n_tuple_generated) << endl
         << "Runtime: " << runtime << endl
         << "Throughtput (n_tuple/seconds): " << n_tuple_generated/runtime << endl;
 
