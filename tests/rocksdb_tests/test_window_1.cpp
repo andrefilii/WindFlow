@@ -69,7 +69,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (stdout_redirect && !std::freopen("output.txt", "w", stdout)) {
+    std::string base_name = "output_";
+    if (stdout_redirect && !std::freopen(base_name.append(std::to_string(std::chrono::system_clock::now().time_since_epoch().count())).append(".txt").c_str(), "w", stdout)) {
         cout << "Error redirecting stdout" << endl;
         exit(EXIT_FAILURE);
     }
@@ -136,7 +137,7 @@ int main(int argc, char *argv[])
     WinSink_Functor sink_functor;
     Sink sink = Sink_Builder(sink_functor)
                     .withName("sink")
-                    .withParallelism(op_degree)
+                    .withParallelism(1) // Mettere ad 1 solo per controllare la correttezza
                     .build();
     mp.chain_sink(sink);
 
