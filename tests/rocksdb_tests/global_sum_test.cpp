@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withResultSerializerAndDeserializer(result_serializer, result_deserializer)
-                                    .setFragSizeBytes(sizeof(tuple_t)*10);
+                                    .setWindowBufferSizeBytes(sizeof(tuple_t)*10);
 
         if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
         else builder = builder.withCBWindows(win_len, win_slide);
