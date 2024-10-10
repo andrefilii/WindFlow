@@ -25,6 +25,7 @@ add_custom_target(rocksdb_tests)
 foreach(testsourcefile ${SOURCES})
     get_filename_component(barename ${testsourcefile} NAME)
     string(REPLACE ".cpp" "" testname ${barename})
-    add_executable(${testname} ${testsourcefile})
+    add_executable(${testname} ${testsourcefile}
+            global_sum_test.cpp)
     add_dependencies(rocksdb_tests ${testname})
 endforeach(testsourcefile ${SOURCES})

@@ -1,8 +1,8 @@
 /**************************************************************************************
  *  Copyright (c) 2019- Gabriele Mencagli
- *  
+ *
  *  This file is part of WindFlow.
- *  
+ *
  *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
  *  You can redistribute it and/or modify it under the terms of the
  *    * GNU Lesser General Public License as published by
@@ -10,7 +10,7 @@
  *      (at your option) any later version
  *    OR
  *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
- *  
+ *
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -21,19 +21,21 @@
  **************************************************************************************
  */
 
-/*  
+/*
  *  Data types and operator functors used by the graph tests with persistent operators.
- */ 
+ */
 
 // includes
 #include<cmath>
 #include<string>
+#include<vector>
 
 using namespace std;
 using namespace wf;
 
 // Global variable for the result
 atomic<long> global_sum;
+atomic<long> tot_tuple;
 
 // Struct of the input tuple
 struct tuple_t
@@ -110,6 +112,90 @@ public:
                 next_ts += offset;
             }
         }
+    }
+};
+
+// source with pseudorandom timestamps and values
+class Source_Functor_2
+{
+private:
+    const unsigned seed = 12345;
+
+    size_t len; // stream length per key
+    size_t keys; // number of keys
+    uint64_t next_ts; // next timestamp
+    bool tb_win; // true if watermarks must be generated
+    unsigned long app_runtime;
+    long tuple_generated = 0;
+
+public:
+    // Constructor
+    Source_Functor_2(size_t _len,
+                   size_t _keys,
+                   bool _tb_win,
+                   unsigned long _app_runtime):
+                   len(_len),
+                   keys(_keys),
+                   next_ts(0),
+                   tb_win(_tb_win),
+                   app_runtime(_app_runtime) {}
+
+    // operator()
+    void operator()(Source_Shipper<tuple_t> &shipper)
+    {
+        static thread_local std::mt19937 generator_ts;
+        static thread_local std::mt19937 generator_values(seed);
+        std::uniform_int_distribution<int> distribution_ts(0, 500);
+        std::uniform_int_distribution<int> distribution_values(1, 100);
+
+        if (len == -1) {
+            // RUNTIME VERSION
+            unsigned long start_time = current_time_nsecs();
+            unsigned long curr_time = start_time;
+            while ( curr_time - start_time <= app_runtime ) {
+                int val = distribution_values(generator_values);
+                for (size_t k=0; k<keys; k++) {
+                    tuple_t t;
+                    t.key = k;
+                    t.value = val;
+
+                    if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
+                    else shipper.push(std::move(t));
+
+                    if (tb_win) {
+                        shipper.setNextWatermark(next_ts);
+                    }
+                    auto offset = (distribution_ts(generator_ts)+1);
+                    next_ts += offset;
+
+                    tuple_generated++;
+                }
+                curr_time = current_time_nsecs();
+            }
+        } else {
+            // STREAM LENGTH VERSION
+            for (size_t i = 0; i < len; i++) {
+                int val = distribution_values(generator_values);
+                for (size_t k=0; k<keys; k++) {
+                    tuple_t t;
+                    t.key = k;
+                    t.value = val;
+
+                    if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
+                    else shipper.push(std::move(t));
+
+                    if (tb_win) {
+                        shipper.setNextWatermark(next_ts);
+                    }
+                    auto offset = (distribution_ts(generator_ts)+1);
+                    next_ts += offset;
+
+                    tuple_generated++;
+                }
+            }
+        }
+
+        tot_tuple.fetch_add(tuple_generated);
     }
 };
 
@@ -465,12 +551,13 @@ public:
     void operator()(optional<result_t> &out, RuntimeContext &rc)
     {
         if (out) {
+            auto result = out.value();
             received++;
-            totalsum += (*out).value;
-            // std::cout << "Ricevuto risultato finestra wid: " << (*out).wid << ", chiave: " << (*out).key << ", valore: " << (*out).value << std::endl;
+            totalsum += result.value;
+            std::printf("{key: %lu, lwid: %lu, value: %lu}\n", result.key, result.wid, result.value);
+            // cout << "{key:" << (*out).key << ", lwid:" << (*out).wid << ", value:" << (*out).value << "}" << endl;
         }
         else {
-            // printf("Received: %ld results, total sum: %ld\n", received, totalsum);
             global_sum.fetch_add(totalsum);
         }
     }
