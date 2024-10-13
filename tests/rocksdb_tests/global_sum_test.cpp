@@ -1,5 +1,5 @@
 /* how to compile:
-    g++ -std=c++17 -g test_1.cpp -o test_1 -I${WINDFLOW_INCLUDE_PATH} -I${FASTFLOW_INCLUDE_PATH} -lrocksdb -O3
+    g++ -std=c++17 -g global_sum_test.cpp -o wtest -I${WINDFLOW_INCLUDE_PATH} -I${FASTFLOW_INCLUDE_PATH} -lrocksdb -O3
 */
 
 #include <windflow.hpp>
@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
     size_t n_keys = 1;
     size_t op_degree = 1;
     size_t output_batch = 0;
+    size_t key_buff = 16;
 
     // initialize global variable
     global_sum = 0;
@@ -119,7 +120,7 @@ int main(int argc, char *argv[])
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withResultSerializerAndDeserializer(result_serializer, result_deserializer)
-                                    .setFragSizeBytes(sizeof(tuple_t)*10);
+                                    .setFragSizeBytes(sizeof(tuple_t)*key_buff);
 
         if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
         else builder = builder.withCBWindows(win_len, win_slide);
@@ -150,15 +151,14 @@ int main(int argc, char *argv[])
     auto start = std::chrono::high_resolution_clock::now();
     graph.run();
     auto end = std::chrono::high_resolution_clock::now();
-
     std::chrono::duration<double> duration = end - start;
-    cout << "Global result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
-    auto n_tuple_generated = (stream_len == -1 ? tot_tuple.load() : stream_len*n_keys*op_degree);
+    auto n_tuple_generated = tot_tuple.load();
     auto runtime = duration.count();
+    cout << "Global result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
     cout << BLUE << "Stats:" << endl
         << "Number of tuple generated: " << n_tuple_generated << endl
         << "Runtime: " << runtime << endl
-        << "Throughtput (n_tuple/seconds): " << n_tuple_generated/runtime << endl;
+        << "Throughtput (n_tuple/seconds): " << n_tuple_generated/runtime << DEFAULT_COLOR << endl;
 
     if (stdout_redirect) std::fclose(stdout);
 

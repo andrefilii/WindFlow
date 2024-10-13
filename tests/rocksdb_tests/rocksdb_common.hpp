@@ -128,6 +128,9 @@ private:
     unsigned long app_runtime;
     long tuple_generated = 0;
 
+    const size_t max_value = (size_t)33;
+    const size_t max_timestamp_offest = (size_t)500;
+
 public:
     // Constructor
     Source_Functor_2(size_t _len,
@@ -144,56 +147,90 @@ public:
     void operator()(Source_Shipper<tuple_t> &shipper)
     {
         static thread_local std::mt19937 generator_ts;
+        static thread_local std::mt19937 generator_keys;
         static thread_local std::mt19937 generator_values(seed);
-        std::uniform_int_distribution<int> distribution_ts(0, 500);
-        std::uniform_int_distribution<int> distribution_values(1, 100);
+        std::uniform_int_distribution<int> distribution_ts(0, max_timestamp_offest);
+        std::uniform_int_distribution<int> distribution_keys(0, keys);
+        std::uniform_int_distribution<int> distribution_values(0, max_value);
 
         if (len == -1) {
             // RUNTIME VERSION
             unsigned long start_time = current_time_nsecs();
             unsigned long curr_time = start_time;
             while ( curr_time - start_time <= app_runtime ) {
-                int val = distribution_values(generator_values);
-                for (size_t k=0; k<keys; k++) {
-                    tuple_t t;
-                    t.key = k;
-                    t.value = val;
+                tuple_t t;
+                t.key = distribution_keys(generator_keys);
+                t.value = distribution_values(generator_values);
 
-                    if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
-                    else shipper.push(std::move(t));
+                if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
+                else shipper.push(std::move(t));
 
-                    if (tb_win) {
-                        shipper.setNextWatermark(next_ts);
-                    }
-                    auto offset = (distribution_ts(generator_ts)+1);
-                    next_ts += offset;
-
-                    tuple_generated++;
+                if (tb_win) {
+                    shipper.setNextWatermark(next_ts);
                 }
+                auto offset = distribution_ts(generator_ts)+1;
+                next_ts += offset;
+
+                tuple_generated++;
+
+                // int val = distribution_values(generator_values);
+                // for (size_t k=0; k<keys; k++) {
+                //     tuple_t t;
+                //     t.key = k;
+                //     t.value = val;
+                //
+                //     if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
+                //     else shipper.push(std::move(t));
+                //
+                //     if (tb_win) {
+                //         shipper.setNextWatermark(next_ts);
+                //     }
+                //     auto offset = (distribution_ts(generator_ts)+1);
+                //     next_ts += offset;
+                //
+                //     tuple_generated++;
+                // }
                 curr_time = current_time_nsecs();
             }
         } else {
             // STREAM LENGTH VERSION
             for (size_t i = 0; i < len; i++) {
-                int val = distribution_values(generator_values);
-                for (size_t k=0; k<keys; k++) {
-                    tuple_t t;
-                    t.key = k;
-                    t.value = val;
+                tuple_t t;
+                t.key = distribution_keys(generator_keys);
+                t.value = distribution_values(generator_values);
 
-                    if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
-                    else shipper.push(std::move(t));
+                if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
+                else shipper.push(std::move(t));
 
-                    if (tb_win) {
-                        shipper.setNextWatermark(next_ts);
-                    }
-                    auto offset = (distribution_ts(generator_ts)+1);
-                    next_ts += offset;
-
-                    tuple_generated++;
+                if (tb_win) {
+                    shipper.setNextWatermark(next_ts);
                 }
+                auto offset = distribution_ts(generator_ts)+1;
+                next_ts += offset;
+
+                tuple_generated++;
+
+                // int val = distribution_values(generator_values);
+                // for (size_t k=0; k<keys; k++) {
+                //     tuple_t t;
+                //     t.key = k;
+                //     t.value = val;
+                //
+                //     if (tb_win) shipper.pushWithTimestamp(std::move(t), next_ts);
+                //     else shipper.push(std::move(t));
+                //
+                //     if (tb_win) {
+                //         shipper.setNextWatermark(next_ts);
+                //     }
+                //     auto offset = (distribution_ts(generator_ts)+1);
+                //     next_ts += offset;
+                //
+                //     tuple_generated++;
+                // }
             }
         }
+
+        cout << RED << "Replica finished. Tot tuple: " << tuple_generated << DEFAULT_COLOR << endl;
 
         tot_tuple.fetch_add(tuple_generated);
     }
