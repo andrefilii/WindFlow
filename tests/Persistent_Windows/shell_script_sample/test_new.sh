@@ -8,7 +8,7 @@ generate_timestamped_filename() {
 # parametri programma
 program="../code/bin/wtest"
 params="-y 0 -x 32 -r 7 -l 1 -m 256 -p 1 -w 30000000 -s 15000000 -k 150000"
-memory_limits=("8G")
+memory_limits=("2G" "4G" "8G")
 output_file=$(generate_timestamped_filename)
 metric_file="metric_latencysdp.json"
 
