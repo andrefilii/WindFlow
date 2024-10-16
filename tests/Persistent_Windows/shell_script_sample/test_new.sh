@@ -2,7 +2,7 @@
 
 generate_timestamped_filename() {
     timestamp=$(date +"%Y%m%d_%H%M%S")
-    echo "../test_results/output_${timestamp}.txt"
+    echo "../test_results/SOL4_output_${timestamp}.txt"
 }
 
 # parametri programma
