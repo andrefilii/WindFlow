@@ -1,0 +1,258 @@
+### COMANDO: systemd-run --user --scope -p MemoryMax=8G/6G/4G/2G -p MemorySwapMax=256M ../bin/wtest -y 0 -x 16 -r 7 -l 1 -w 256 -s 1 -k 100000 ###
+### SOVRAPPOSIZIONE FINESTRE: 50% ###
+
+## SOLUZIONE 1 ##
+--- Eseguo con un cap di memoria: 8G ---
+Measured throughput: 23866 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 58072,
+    "total": 216437899,
+    "mean": 1728915557702040.8,
+    "0": 1728915267977106.0,
+    "5": 1728915296376645.0,
+    "25": 1728915412526701.0,
+    "50": 1728915557706631.0,
+    "75": 1728915702886644.0,
+    "95": 1728915819026641.0,
+    "100": 1728915848056659.0
+}
+--- Fine esecuzione con MemoryMax=8G ---
+
+--- Eseguo con un cap di memoria: 6G ---
+Measured throughput: 24494 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 60185,
+    "total": 230309218,
+    "mean": 1728916150156596.3,
+    "0": 1728915849609378.0,
+    "5": 1728915879326397.0,
+    "25": 1728915999696393.0,
+    "50": 1728916150156381.0,
+    "75": 1728916300616406.0,
+    "95": 1728916420986390.0,
+    "100": 1728916451076387.0
+}
+--- Fine esecuzione con MemoryMax=6G ---
+
+--- Eseguo con un cap di memoria: 4G ---
+Measured throughput: 24309 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 60179,
+    "total": 228529984,
+    "mean": 1728916753169320.0,
+    "0": 1728916452651182.0,
+    "5": 1728916482359155.0,
+    "25": 1728916602719201.0,
+    "50": 1728916753169134.0,
+    "75": 1728916903619143.0,
+    "95": 1728917023979157.0,
+    "100": 1728917054059202.0
+}
+--- Fine esecuzione con MemoryMax=4G ---
+
+--- Eseguo con un cap di memoria: 2G ---
+KILLED
+--- Fine esecuzione con MemoryMax=2G ---
+
+
+## SOLUZIONE 4 ##
+--- Eseguo con un cap di memoria: 8G ---
+Measured throughput: 9316 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 57393,
+    "total": 82513047,
+    "mean": 1728918098268613.6,
+    "0": 1728917811998483.0,
+    "5": 1728917839998088.0,
+    "25": 1728917954788155.0,
+    "50": 1728918098268114.0,
+    "75": 1728918241748069.0,
+    "95": 1728918356538134.0,
+    "100": 1728918385228217.0
+}
+--- Fine esecuzione con MemoryMax=8G ---
+
+--- Eseguo con un cap di memoria: 6G ---
+Measured throughput: 10344 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 60538,
+    "total": 96905054,
+    "mean": 1728918689160494.6,
+    "0": 1728918386867969.0,
+    "5": 1728918416735264.0,
+    "25": 1728918537815261.0,
+    "50": 1728918689165268.0,
+    "75": 1728918840505283.0,
+    "95": 1728918961585313.0,
+    "100": 1728918991845309.0
+}
+--- Fine esecuzione con MemoryMax=6G ---
+
+--- Eseguo con un cap di memoria: 4G ---
+Measured throughput: 10388 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 60535,
+    "total": 97315992,
+    "mean": 1728919296128183.6,
+    "0": 1728918993851826.0,
+    "5": 1728919023718016.0,
+    "25": 1728919144787974.0,
+    "50": 1728919296127938.0,
+    "75": 1728919447468120.0,
+    "95": 1728919568537977.0,
+    "100": 1728919598797940.0
+}
+--- Fine esecuzione con MemoryMax=4G ---
+
+--- Eseguo con un cap di memoria: 2G ---
+Measured throughput: 10296 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 60546,
+    "total": 96460101,
+    "mean": 1728919902725543.8,
+    "0": 1728919600400050.0,
+    "5": 1728919630270334.0,
+    "25": 1728919751360404.0,
+    "50": 1728919902730317.0,
+    "75": 1728920054090426.0,
+    "95": 1728920175180385.0,
+    "100": 1728920205450356.0
+}
+--- Fine esecuzione con MemoryMax=2G ---
+
+
+### COMANDO: systemd-run --user --scope -p MemoryMax=8G/6G/4G/2G -p MemorySwapMax=256M ../bin/wtest -y 0 -x 16 -r 7 -l 1 -w 256 -s 3 -k 100000 ###
+### SOVRAPPOSIZIONE FINESTRE: 50% ###
+
+## SOLUZIONE 1 ##
+--- Eseguo con un cap di memoria: 8G ---
+Measured throughput: 98801 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 179780,
+    "total": 102975816,
+    "mean": 1728926641648449.8,
+    "0": 1728926342273721.0,
+    "5": 1728926371979958.0,
+    "25": 1728926491829963.0,
+    "50": 1728926641649954.0,
+    "75": 1728926791469925.0,
+    "95": 1728926911319928.0,
+    "100": 1728926941409906.0
+}
+--- Fine esecuzione con MemoryMax=8G ---
+
+--- Eseguo con un cap di memoria: 6G ---
+Measured throughput: 99319 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 179741,
+    "total": 103516686,
+    "mean": 1729010542606815.3,
+    "0": 1728926944767390.0,
+    "5": 1728926974447297.0,
+    "25": 1728927094277242.0,
+    "50": 1728927244057259.0,
+    "75": 1728927393847177.0,
+    "95": 1728927513667199.0,
+    "100": 16701091499487622.0
+}
+--- Fine esecuzione con MemoryMax=6G ---
+
+--- Eseguo con un cap di memoria: 4G ---
+Measured throughput: 99852 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 179772,
+    "total": 104087005,
+    "mean": 1728927846129222.0,
+    "0": 1728927546768188.0,
+    "5": 1728927576473983.0,
+    "25": 1728927696323978.0,
+    "50": 1728927846134060.0,
+    "75": 1728927995943997.0,
+    "95": 1728928115784053.0,
+    "100": 1728928145994077.0
+}
+--- Fine esecuzione con MemoryMax=4G ---
+
+--- Eseguo con un cap di memoria: 2G ---
+KILLED
+--- Fine esecuzione con MemoryMax=2G ---
+
+
+## SOLUZIONE 4 ##
+--- Eseguo con un cap di memoria: 8G ---
+Measured throughput: 59383 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 167868,
+    "total": 57574136,
+    "mean": 1728928875414141.6,
+    "0": 1728928596047729.0,
+    "5": 1728928623617750.0,
+    "25": 1728928735528719.0,
+    "50": 1728928875418754.0,
+    "75": 1728929015308772.0,
+    "95": 1728929127218727.0,
+    "100": 1728929155478751.0
+}
+--- Fine esecuzione con MemoryMax=8G ---
+
+--- Eseguo con un cap di memoria: 6G ---
+Measured throughput: 66080 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 180077,
+    "total": 68821773,
+    "mean": 1728929458781926.8,
+    "0": 1728929158942212.0,
+    "5": 1728929188668382.0,
+    "25": 1728929308718410.0,
+    "50": 1728929458778390.0,
+    "75": 1728929608848352.0,
+    "95": 1728929728898432.0,
+    "100": 1728929759108358.0
+}
+--- Fine esecuzione con MemoryMax=6G ---
+
+--- Eseguo con un cap di memoria: 4G ---
+Measured throughput: 66749 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 180036,
+    "total": 69513393,
+    "mean": 1728930062155296.3,
+    "0": 1728929762374454.0,
+    "5": 1728929792100119.0,
+    "25": 1728929912130015.0,
+    "50": 1728930062160033.0,
+    "75": 1728930212190090.0,
+    "95": 1728930332210097.0,
+    "100": 1728930362470258.0
+}
+--- Fine esecuzione con MemoryMax=4G ---
+
+--- Eseguo con un cap di memoria: 2G ---
+KILLED
+--- Fine esecuzione con MemoryMax=2G ---
