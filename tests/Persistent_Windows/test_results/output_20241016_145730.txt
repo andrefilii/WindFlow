@@ -1,0 +1,27 @@
+--- Eseguo con un cap di memoria: 8G ---
+Executing topology
+[32mWindFlow Status Message: PipeGraph [WindowTest] is running with 4 threads[0m
+--> DETERMINISTIC (in-order) mode [32menabled[0m
+--> EVENT_TIME policy [32menabled[0m
+--> Backpressure [32menabled[0m
+--> Non-blocking queues [32menabled[0m
+--> Pinning of threads [32menabled[0m
+[32mWindFlow Status Message: PipeGraph [WindowTest] executed successfully[0m
+Exiting
+Measured throughput: 20432 tuples/second
+Dumping metrics
+{
+    "name": "latency",
+    "samples": 59862,
+    "total": 290495173,
+    "mean": 1729090955141732.0,
+    "0": 1729090656679727.0,
+    "5": 1729090685766057.0,
+    "25": 1729090805486092.0,
+    "50": 1729090955146069.0,
+    "75": 1729091104796062.0,
+    "95": 1729091224516079.0,
+    "100": 1729091254446101.0
+}
+--- Fine esecuzione con MemoryMax=8G ---
+

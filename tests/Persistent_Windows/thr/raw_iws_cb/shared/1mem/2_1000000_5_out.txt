@@ -1,0 +1,1 @@
+wtest1: /home/frassinelli/WindFlow-4.0.0/wf/persistent/db_handle.hpp:132: void wf::DBHandle<T>::initDB(rocksdb::DB*, rocksdb::Options, rocksdb::ReadOptions, rocksdb::WriteOptions) [with T = tuple_t]: Assertion `s.ok()' failed.

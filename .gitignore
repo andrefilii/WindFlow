@@ -3,6 +3,8 @@
 
 cmake-build-debug
 
-test_results
+/test_results
 
 tests/rocksdb_tests/wtest
+
+*.o

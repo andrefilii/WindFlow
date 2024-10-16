@@ -1,0 +1,7 @@
+Executing topology
+[32mWindFlow Status Message: PipeGraph [WindowTest] is running with 20 threads[0m
+--> DETERMINISTIC (in-order) mode [32menabled[0m
+--> EVENT_TIME policy [32menabled[0m
+--> Backpressure [32menabled[0m
+--> Non-blocking queues [32menabled[0m
+--> Pinning of threads [32menabled[0m
