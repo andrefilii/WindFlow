@@ -373,21 +373,20 @@ public:
     std::deque<wrapper_t> get_window(std::string &_key)
     {
         std::string db_val;
-        std::string *memory_db_val = nullptr;
         rocksdb::PinnableSlice pinnable_db_val(&db_val);
-        std::deque<wrapper_t> real_val;
+        std::deque<wrapper_t> outputs;
         rocksdb::Status key_status;
         key_status = db->Get(read_options, db->DefaultColumnFamily(), _key, &pinnable_db_val);
         if (key_status.ok()) {
             if (pinnable_db_val.IsPinned()) {
-                memory_db_val = pinnable_db_val.GetSelf();
+                db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
             }
 #ifdef DEBUG_MODE
             std::cout << "DB::get_window for key: " << _key << " VALUE:\n" << (memory_db_val ? *memory_db_val : db_val) << std::endl;
 #endif
-            real_val = memory_db_val ? wrapper_list_deserializer(*memory_db_val) : wrapper_list_deserializer(db_val);
+            outputs = wrapper_list_deserializer(db_val);
         }
-        return real_val;
+        return outputs;
     }
 
     // Method to put a value of type T associated with db_key
