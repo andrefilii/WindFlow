@@ -98,6 +98,7 @@ public:
             to_sent_tuple.value = tuple_value_distribution(generator2);
             to_sent_tuple.timestamp = current_time_nsecs();
             shipper.pushWithTimestamp(std::move(to_sent_tuple), next_ts);
+            shipper.setNextWatermark(next_ts);
             auto offset = (timestamp_distribution(generator3) + 1);
             next_ts += offset;
             generated_tuples++;

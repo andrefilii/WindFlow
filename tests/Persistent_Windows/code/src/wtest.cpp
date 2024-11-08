@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
     */
     unsigned long app_start_time = current_time_nsecs();
     std::string RR = "X" + std::to_string(parallelism) + std::to_string(runs) + std::to_string(n_keys);
-    PipeGraph graph("WindowTest", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
+    PipeGraph graph("WindowTest", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
 
     Source_Functor source_functor(app_start_time, 16, n_keys);
     Source source = Source_Builder(source_functor)
