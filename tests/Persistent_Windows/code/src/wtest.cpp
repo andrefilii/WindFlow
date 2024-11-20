@@ -151,10 +151,9 @@ int main(int argc, char *argv[])
                                     .withKeyBy([](const tuple_t &t) -> size_t
                                                { return t.key; })
                                     .withCBWindows(win_len, win_slide)
-                                    .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withResultSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withOptions(_myopt)
-                                    .setFragSizeBytes(key_buff * sizeof(tuple_t))
+                                    .setFragmentSize(key_buff)
                                     .build();
         mp.add(kwins);
     }
@@ -179,9 +178,8 @@ int main(int argc, char *argv[])
                                                { return t.key; })
                                     .withCBWindows(win_len, win_slide)
                                     .withOptions(_myopt)
-                                    .setFragSizeBytes(key_buff * sizeof(tuple_t))
+                                    .setFragmentSize(key_buff * sizeof(tuple_t))
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
-                                    .withResultSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .build();
         mp.add(kwins);
     }
@@ -206,8 +204,7 @@ int main(int argc, char *argv[])
                                                { return t.key; })
                                     .withTBWindows(microseconds(win_len), microseconds(win_slide))
                                     .withOptions(_myopt)
-                                    .setFragSizeBytes(key_buff * sizeof(tuple_t))
-                                    .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
+                                    .setFragmentSize(key_buff)
                                     .withResultSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .build();
         mp.add(kwins);
@@ -233,9 +230,8 @@ int main(int argc, char *argv[])
                                                { return t.key; })
                                     .withTBWindows(microseconds(win_len), microseconds(win_slide))
                                     .withOptions(_myopt)
-                                    .setFragSizeBytes(key_buff * sizeof(tuple_t))
+                                    .setFragmentSize(key_buff)
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
-                                    .withResultSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .build();
         mp.add(kwins);
     }
