@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
                                     .withCBWindows(win_len, win_slide)
                                     .withResultSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withOptions(_myopt)
-                                    .setWindowBufferSizeBytes(key_buff * sizeof(tuple_t))
+                                    .setWindowBufferSize(key_buff)
                                     .build();
         mp.add(kwins);
     }
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
                                                { return t.key; })
                                     .withCBWindows(win_len, win_slide)
                                     .withOptions(_myopt)
-                                    .setWindowBufferSizeBytes(key_buff * sizeof(tuple_t))
+                                    .setWindowBufferSize(key_buff)
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .build();
         mp.add(kwins);
@@ -204,8 +204,7 @@ int main(int argc, char *argv[])
                                                { return t.key; })
                                     .withTBWindows(microseconds(win_len), microseconds(win_slide))
                                     .withOptions(_myopt)
-                                    .setWindowBufferSizeBytes(key_buff * sizeof(tuple_t))
-                                    .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
+                                    .setWindowBufferSize(key_buff)
                                     .withResultSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .build();
         mp.add(kwins);
@@ -231,7 +230,7 @@ int main(int argc, char *argv[])
                                                { return t.key; })
                                     .withTBWindows(microseconds(win_len), microseconds(win_slide))
                                     .withOptions(_myopt)
-                                    .setWindowBufferSizeBytes(key_buff * sizeof(tuple_t))
+                                    .setWindowBufferSize(key_buff)
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .build();
         mp.add(kwins);

@@ -382,7 +382,7 @@ public:
                 db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
             }
 #ifdef DEBUG_MODE
-            std::cout << "DB::get_window for key: " << _key << " VALUE:\n" << (memory_db_val ? *memory_db_val : db_val) << std::endl;
+            std::cout << "DB::get_window for key: " << _key << " VALUE:\n" << db_val << std::endl;
 #endif
             outputs = wrapper_list_deserializer(db_val);
         }
