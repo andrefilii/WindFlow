@@ -191,7 +191,7 @@ public:
      *  \param _options options to be provided to RocksDB
      *  \param _read_options read options to be provided to RocksDB
      *  \param _write_options read options to be provided to RocksDB
-     *  \param _frag_size size of each archive fragment of the stream (in no. of tuples)
+     *  \param _buffer_size size of each key buffer of the stream (in no. of tuples)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
@@ -213,7 +213,7 @@ public:
                     rocksdb::Options _options,
                     rocksdb::ReadOptions _read_options,
                     rocksdb::WriteOptions _write_options,
-                    size_t _frag_size,
+                    size_t _buffer_size,
                     uint64_t _win_len,
                     uint64_t _slide_len,
                     uint64_t _lateness,
@@ -248,7 +248,7 @@ public:
                                                                                 _deleteDb,
                                                                                 _sharedDb,
                                                                                 i,
-                                                                                _frag_size,
+                                                                                _buffer_size,
                                                                                 win_len,
                                                                                 slide_len,
                                                                                 lateness,

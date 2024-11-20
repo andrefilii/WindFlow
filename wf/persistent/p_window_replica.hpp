@@ -303,8 +303,7 @@ public:
                      bool _deleteDb,
                      bool _sharedDb,
                      size_t _whoami,
-                     bool _results_in_memory,
-                     size_t _buffer_bytes,
+                     size_t _buffer_size,
                      uint64_t _win_len,
                      uint64_t _slide_len,
                      uint64_t _lateness,
@@ -313,8 +312,7 @@ public:
                      Basic_Replica(_opName, _context, _closing_func, true),
                      func(_func),
                      key_extr(_key_extr),
-                     results_in_memory(_results_in_memory),
-                     n_max_elements(size_t(_buffer_bytes / sizeof(tuple_t))), // <-- Occhio!
+                     n_max_elements(_buffer_size), // <-- Occhio!
                      win_len(_win_len),
                      slide_len(_slide_len),
                      lateness(_lateness),

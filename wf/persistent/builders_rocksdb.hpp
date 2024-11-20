@@ -1276,13 +1276,9 @@ private:
     deserialize_result_func_t result_deserialize;
     keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
     bool isKeyBySet = false; // true if a key extractor has been provided
-    size_t buffer_bytes = sizeof(tuple_t) * 16; // size in bytes of each archive fragment of the stream
-    bool results_in_memory = true; // flag stating if results must be kepts in memory or on RocksDB
+    size_t buffer_size = 16; // size of each key buffer of the stream (in no. of tuples)
     bool isTupleFunctions = false; // flag stating if the tuple serializer/deserializer have been provided
     bool isResultFunctions = false; // flag stating if the result serializer/deserializer have been provided
-    keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
-    bool isKeyBySet = false; // true if a key extractor has been provided
-    size_t frag_size = 16; // size of each archive fragment of the stream (in number of tuples)
     uint64_t win_len=0; // window length in number of tuples or in time units
     uint64_t slide_len=0; // slide length in number of tuples or in time units
     uint64_t lateness=0; // lateness in time units
@@ -1385,25 +1381,25 @@ public:
         new_builder.result_deserialize = result_deserialize;
         new_builder.isTupleFunctions = isTupleFunctions;
         new_builder.isResultFunctions = isResultFunctions;
-        new_builder.buffer_bytes = buffer_bytes;
-        new_builder.results_in_memory = results_in_memory;
+        new_builder.key_extr = _key_extr;
+        new_builder.isKeyBySet = true;
+        new_builder.buffer_size = buffer_size;
         new_builder.win_len = win_len;
         new_builder.slide_len = slide_len;
         new_builder.lateness = lateness;
         new_builder.winType = winType;
-        new_builder.sort_enabled = sort_enabled;
         return new_builder;
     }
 
     /** 
-     *  \brief Set the size in bytes of each window's buffer in memory
+     *  \brief Set the size of each window's buffer in memory (in no. of tuples)
      *  
-     *  \param _buffer_bytes size in bytes
+     *  \param _buffer_size size in no. of tuples
      *  \return a reference to the builder object
      */ 
-    auto &setWindowBufferSizeBytes(size_t _buffer_bytes)
+    auto &setWindowBufferSize(size_t _buffer_size)
     {
-        buffer_bytes = _buffer_bytes;
+        buffer_size = _buffer_size;
         return *this;
     }
 
@@ -1513,8 +1509,7 @@ public:
                               this->options,
                               this->read_options,
                               this->write_options,
-                              results_in_memory,
-                              buffer_bytes,
+                              buffer_size,
                               win_len,
                               slide_len,
                               lateness,
