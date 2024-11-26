@@ -47,6 +47,7 @@
 namespace wf {
 
 #define WRAP_TOKEN "_$$_"
+#define FRAG_ID "F_"
 
 // class DBHandle
 template<typename T>
@@ -187,6 +188,11 @@ public:
         }
     }
 
+    std::string key_serializer_frag(size_t _idx)
+    {
+        return FRAG_ID + std::to_string(whoami) + "_" + std::to_string(_idx);
+    }
+
     // Method to serialize a deque of objects of type T
     std::string T_list_serializer(std::deque<T> &_in)
     {
@@ -303,6 +309,33 @@ public:
         return outputs;
     }
 
+    // VERSIONE GLOBAL
+    std::deque<wrapper_t> get_list_frag(size_t _idx)
+    {
+        std::string db_val;
+        rocksdb::PinnableSlice pinnable_db_val(&db_val);
+        std::deque<wrapper_t> outputs;
+        rocksdb::Status key_status;
+        db_key = key_serializer_frag(_idx);
+#ifdef P_DEBUG
+        std::cout << "dh: GET_FRAG db_key: " << db_key << std::endl;
+#endif
+        key_status = db->Get(read_options, db->DefaultColumnFamily(), db_key, &pinnable_db_val);
+        if (key_status.ok()) {
+            if (pinnable_db_val.IsPinned()) {
+                db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
+            }
+            outputs = wrapper_list_deserializer(db_val);
+        }
+#ifdef P_DEBUG
+        for (auto &w : outputs) {
+            std::cout << "\t<key: " << w.tuple.key << ", index: " << w.index << ">" << std::endl; 
+        }
+#endif
+
+        return outputs;
+    }
+
     // Method to put a value of type T associated with db_key
     void put(T &_val)
     {
@@ -314,6 +347,18 @@ public:
     void put(std::deque<wrapper_t> &_val, key_t &_key, size_t _idx)
     {
         db->Put(write_options, key_serializer(_key, _idx), wrapper_list_serializer(_val));
+    }
+
+
+    void put(std::deque<wrapper_t> &_val, size_t _idx)
+    {
+#ifdef P_DEBUG
+        std::cout << "dh: PUT db_key: " << key_serializer_frag(_idx) << std::endl;
+        for (auto &w : _val) {
+            std::cout << "\t<key: " << w.tuple.key << ", index: " << w.index << ">" << std::endl; 
+        }
+#endif
+        db->Put(write_options, key_serializer_frag(_idx), wrapper_list_serializer(_val));
     }
 
     // Method to put a value represented by a deque of objects of type T associated with a stream key
@@ -328,6 +373,12 @@ public:
     void delete_key(key_t &_key, size_t _idx)
     {
         db->Delete(write_options, key_serializer(_key, _idx));
+    }
+
+
+    void delete_key(size_t _idx)
+    {
+        db->Delete(write_options, key_serializer_frag(_idx));
     }
 
     // Method to serialize the internal state of type T

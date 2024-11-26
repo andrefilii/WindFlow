@@ -34,8 +34,8 @@
  *  keeping information on RocksDB.
  */ 
 
-#ifndef P_WIN_REPLICA_TB_H
-#define P_WIN_REPLICA_TB_H
+#ifndef P_WIN_REPLICA_CB_H
+#define P_WIN_REPLICA_CB_H
 
 // includes
 #include<map>
@@ -64,7 +64,7 @@ namespace wf {
 
 // class P_Window_Replica
 template<typename win_func_t, typename keyextr_func_t>
-class P_Window_Replica: public Basic_Replica
+class P_Window_Replica_CB: public Basic_Replica
 {
 private:
     template<typename T1, typename T2> friend class P_Keyed_Windows;
@@ -83,7 +83,7 @@ private:
                   "WindFlow Compilation Error - P_Window_Replica does not have a valid functional logic:\n");
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using input_iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type for accessing wrapped tuples in the archive
-    using win_t = P_Window<tuple_t, result_t>; // window type used by the P_Window_Replica
+    using win_t = P_Window<tuple_t, result_t, key_t>; // window type used by the P_Window_Replica
     using compare_func_t = std::function<bool(const wrapper_t &, const wrapper_t &)>; // function type to compare two wrapped tuples
     using index_t = decltype(wrapper_t::index); // type of the index field
     using compare_func_index_t = std::function<bool(const index_t &, const index_t &)>; // function type to compare two indexes
@@ -104,15 +104,6 @@ private:
         uint64_t next_input_id = 0; // identifier of the next tuple of this key
     };
 
-    std::vector<win_t> wins; // open windows global
-    std::deque<wrapper_t> actual_memory; // in-memoty buffer of tuples used by non-incremental logic only
-    std::deque<meta_frag_t> frags; // fragments metadata global
-    size_t frag_keys = 0; // counter of fragments produced globally
-    index_t min, max; // min and max indexes in the in-memory buffer
-    uint64_t next_lwid = 0; // next window to be opened (lwid)
-    int64_t last_lwid = -1; // last window closed (lwid)
-    std::set<key_t> seen_keys;
-
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hashtable mapping keys to Key_Descriptor structures
     compare_func_t compare_func = [](const wrapper_t &w1, const wrapper_t &w2) { return w1.index < w2.index; }; // function to compare two wrapped tuples
     compare_func_index_t geqt = [](const index_t &w1, const index_t &w2) { return w1 >= w2; }; // geq function between indexes
@@ -127,138 +118,120 @@ private:
 
 public:
     // check_range_mm method to check that a fragment is useful for a window computation
-    inline bool check_range_mm(const index_t &min,
-                                 const index_t &max,
-                                 const meta_frag_t &_info,
-                                 bool _only_one)
+    inline bool check_range_mm(const wrapper_t &_minw,
+                               const wrapper_t &_maxw,
+                               const meta_frag_t &_info,
+                               bool _only_one)
     {
-        return _only_one ? leqt(max, std::get<1>(_info)) : (geqt(max, std::get<0>(_info)) && leqt(min, std::get<1>(_info)));
+        return _only_one ? leqt(_maxw.index, std::get<1>(_info)) : (geqt(_maxw.index, std::get<0>(_info)) && leqt(_minw.index, std::get<1>(_info)));
     }
 
     // set_mm method to set min and max indexes inside the in-memory buffer
-    inline void set_mm(const index_t &_wt_index)
+    inline void set_mm(const index_t &_wt_index,
+                       Key_Descriptor &_kd)
     {
-        if (actual_memory.empty()) {
-            max = _wt_index;
-            min = _wt_index;
+        if (_kd.actual_memory.empty()) {
+            _kd.max = _wt_index;
+            _kd.min = _wt_index;
             return;
         }
-        if (geqt(_wt_index, max)) {
-            max = _wt_index;
+        if (geqt(_wt_index, _kd.max)) {
+            _kd.max = _wt_index;
         }
-        if (leqt(_wt_index, min)) {
-            min = _wt_index;
+        if (leqt(_wt_index, _kd.min)) {
+            _kd.min = _wt_index;
         }
     }
 
     // method to insert a new tuple in the in-memory buffer
-    void insert(wrapper_t &&_wt)
+    void insert(wrapper_t &&_wt,
+                Key_Descriptor &_kd,
+                key_t &_my_key)
     {
-#ifdef P_DEBUG
-        std::cout << "pw: INSERT - buf_size: " << actual_memory.size();
-#endif
-        if (actual_memory.size() + 1 > n_max_elements) {
-#ifdef P_DEBUG
-            std::cout << " FLUSH";
-#endif
-            size_t new_frag_id = frag_keys++;
-            meta_frag_t meta(min, max, new_frag_id);
-            frags.push_back(meta);
-            mydb_wrappers->put(actual_memory, new_frag_id);
-            actual_memory.clear();
+        if (_kd.actual_memory.size() + 1 > n_max_elements) {
+            size_t new_frag_id = _kd.frag_keys++;
+            meta_frag_t meta(_kd.min, _kd.max, new_frag_id);
+            _kd.frags.push_back(meta);
+            mydb_wrappers->put(_kd.actual_memory, _my_key, new_frag_id);
+            _kd.actual_memory.clear();
         }
-        set_mm(_wt.index); // update min/max new fragment
-        actual_memory.push_back(std::move(_wt));
-#ifdef P_DEBUG
-        std::cout << std::endl;
-#endif
+        set_mm(_wt.index, _kd); // update min/max new fragment
+        _kd.actual_memory.push_back(std::move(_wt));
     }
 
     // method to insert a new tuple in the in-memory buffer
-    void insert(const wrapper_t &_wt)
+    void insert(const wrapper_t &_wt,
+                Key_Descriptor &_kd,
+                key_t &_my_key)
     {
-        if (actual_memory.size() + 1 > n_max_elements) {
-            size_t new_frag_id = frag_keys++;
-            meta_frag_t meta(min, max, new_frag_id);
-            frags.push_back(meta);
-            mydb_wrappers->put(actual_memory, new_frag_id);
-            actual_memory.clear();
+        if (_kd.actual_memory.size() + 1 > n_max_elements) {
+            size_t new_frag_id = _kd.frag_keys++;
+            meta_frag_t meta(_kd.min, _kd.max, new_frag_id);
+            _kd.frags.push_front(meta);
+            mydb_wrappers->put(_kd.actual_memory, _my_key, new_frag_id);
+            _kd.actual_memory.clear();
         }
-        set_mm(_wt.index); // update min/max new fragment
-        actual_memory.push_back(_wt);
+        set_mm(_wt.index, _kd); // update min/max new fragment
+        _kd.actual_memory.push_back(_wt);
     }
 
     // method to purge all tuples older than _wt
-    size_t purge(const index_t &_wt)
+    size_t purge(const wrapper_t &_wt,
+                 Key_Descriptor &_kd,
+                 key_t &_my_key)
     {
-#ifdef P_DEBUG
-        std::cout << "pw: PURGE ";
-#endif
         size_t sum = 0;
-        if (compare_func_index(max, _wt)) {
-            sum += actual_memory.size();
-            actual_memory.clear();
+        if (compare_func_index(_kd.max, _wt.index)) {
+            sum += _kd.actual_memory.size();
+            _kd.actual_memory.clear();
         }
-        if (frags.empty()) {
-#ifdef P_DEBUG
-            std::cout << std::endl;
-#endif
+        if (_kd.frags.empty()) {
             return sum;
         }
-        for (auto &info: frags) {
-            if (compare_func_index(std::get<1>(info), _wt)) {
-                mydb_wrappers->delete_key(std::get<2>(info));
+        for (auto &info: _kd.frags) {
+            if (compare_func_index(std::get<1>(info), _wt.index)) {
+                mydb_wrappers->delete_key(_my_key, std::get<2>(info));
                 std::get<2>(info) = -1;
                 sum += n_max_elements;
             }
         }
-        auto erased_it = std::remove_if(frags.begin(), frags.end(), [](meta_frag_t &x) { return std::get<2>(x) == (size_t)-1; });
-        frags.erase(erased_it, frags.end());
-#ifdef P_DEBUG
-        std::cout << " sum: " << sum << std::endl;
-#endif
+        auto erased_it = std::remove_if(_kd.frags.begin(), _kd.frags.end(), [](meta_frag_t &x) { return std::get<2>(x) == (size_t)-1; });
+        _kd.frags.erase(erased_it, _kd.frags.end());
         return sum;
     }
 
     // method to get the history of tuples useful for computing a windows
-    std::deque<wrapper_t> get_history_buffer(const index_t &_min,
-                                             const index_t &_max,
-                                             bool _from_min_to_end)
+    std::deque<wrapper_t> get_history_buffer(const wrapper_t &_w1,
+                                             const wrapper_t &_w2,
+                                             bool _from_w1_to_end,
+                                             Key_Descriptor &_kd,
+                                             key_t &_my_key)
     {
         std::deque<wrapper_t> final_range;
-        meta_frag_t mem_infos(min, max, 0);
-        if (check_range_mm(_min, _max, mem_infos, _from_min_to_end)) {
-            final_range.insert(final_range.end(), actual_memory.begin(), actual_memory.end());
+        meta_frag_t mem_infos(_kd.min, _kd.max, 0);
+        if (check_range_mm(_w1, _w2, mem_infos, _from_w1_to_end)) {
+            // for (wrapper_t &wrap: _kd.actual_memory) {
+            //    final_range.push_back(wrap);
+            // }
+            final_range.insert(final_range.end(), _kd.actual_memory.begin(), _kd.actual_memory.end());
         }
-        for (auto &info: frags) {
-            if (check_range_mm(_min, _max, info, _from_min_to_end)) {
-                std::deque<wrapper_t> to_push = mydb_wrappers->get_list_frag(std::get<2>(info));
+        for (auto &info: _kd.frags) {
+            if (check_range_mm(_w1, _w2, info, _from_w1_to_end)) {
+                std::deque<wrapper_t> to_push = mydb_wrappers->get_list_frag(_my_key, std::get<2>(info));
+                // for (wrapper_t &wrap: to_push) {
+                //    final_range.push_back(std::move(wrap));
+                // }
                 final_range.insert(final_range.end(), std::make_move_iterator(to_push.begin()), std::make_move_iterator(to_push.end()));
             }
         }
-        std::sort(final_range.begin(), final_range.end(), [this](const wrapper_t &w1, const wrapper_t &w2){
-            key_t k1 = this->key_extr(w1.tuple);
-            key_t k2 = this->key_extr(w2.tuple);
-            if (k1 == k2)
-            {
-                return compare_func(w1, w2);
-            }
-            return k1 < k2;
-        }); // sorting the archive before passing to the user function (NIC)
-#ifdef P_DEBUG
-        std::cout << "pw: GET_HISTORY" << std::endl;
-        for (auto &w : final_range) {
-            std::cout << "\t(key: " << key_extr(w.tuple) << ", index: " << w.index << ")" << std::endl; 
-        }
-#endif
-
+        std::sort(final_range.begin(), final_range.end(), compare_func); // sorting the archive before passing to the user function (NIC)
         return final_range;
     }
 
     // getEnd method
-    input_iterator_t getEnd()
+    input_iterator_t getEnd(Key_Descriptor &_kd)
     {
-        return actual_memory.end();
+        return (_kd.actual_memory).end();
     }
 
     // Constructor
@@ -412,16 +385,22 @@ public:
             last_time = _timestamp;
         }
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
-        seen_keys.insert(key);
-
-        uint64_t index = _timestamp; // index value is the identifier (CB) of the timestamp (TB) of the tuple
+        size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
+        auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
+        if (it == keyMap.end()) {
+            auto p = keyMap.insert(std::make_pair(key, Key_Descriptor())); // create the state of the key
+            it = p.first;
+        }
+        Key_Descriptor &key_d = (*it).second;
+        _identifier = key_d.next_input_id++; // set the progressive identifier of the tuple (per key basis)
+        uint64_t index = (winType == Win_Type_t::CB) ? _identifier : _timestamp; // index value is the identifier (CB) of the timestamp (TB) of the tuple
         // gwid of the first window of the key assigned to the replica
         uint64_t first_gwid_key = 0;
         // initial identifer (CB) or timestamp (TB) of the keyed sub-stream arriving at the replica
         uint64_t initial_index = 0;
-        uint64_t min_boundary = (last_lwid >= 0) ? win_len + (last_lwid * slide_len) : 0; // if the tuple is related to a closed window -> IGNORED
+        uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid * slide_len) : 0; // if the tuple is related to a closed window -> IGNORED
         if (index < initial_index + min_boundary) {
-            if (last_lwid >= 0) {
+            if (key_d.last_lwid >= 0) {
 #if defined(WF_TRACING_ENABLED)
                 stats_record.inputs_ignored++;
 #endif
@@ -439,24 +418,30 @@ public:
         }
         std::deque<result_t> _win_results; // used only by incremental processing
         bool res_opened = false; // used only by incremental processing
+        auto &wins = key_d.wins;
         if constexpr (isIncNonRiched || isIncRiched) {
-            if ((long) next_lwid <= last_w) { // if there are new windows, and results are kept on RocksDB
+            if ((long) key_d.next_lwid <= last_w) { // if there are new windows, and results are kept on RocksDB
                 _win_results = mydb_results->get_list_result(key); // deserialize windows results associated with key
                 res_opened = true;
             }
         }
-        for (long lwid = next_lwid; lwid <= last_w; lwid++) { // create all the new opened windows
+        for (long lwid = key_d.next_lwid; lwid <= last_w; lwid++) { // create all the new opened windows
             uint64_t gwid = first_gwid_key + lwid; // translate lwid -> gwid
             if constexpr (isIncNonRiched || isIncRiched) {
                 result_t new_res = create_win_result_t<result_t, key_t>(key, gwid);
                 _win_results.push_back(new_res);
             }
-            wins.push_back(win_t(lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_index), Win_Type_t::TB, win_len, slide_len));
-            next_lwid++;
+            if (winType == Win_Type_t::CB) {
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_index), Win_Type_t::CB, win_len, slide_len));
+            }
+            else {
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_index), Win_Type_t::TB, win_len, slide_len));
+            }
+            key_d.next_lwid++;
         }
         size_t cnt_fired = 0;
         if constexpr (isNonIncRiched || isNonIncNonRiched) {
-            insert(wrapper_t(_tuple, index)); // insert the wrapped tuple in the archive (non-incremental processing only)
+            insert(wrapper_t(_tuple, index), key_d, key); // insert the wrapped tuple in the archive of the key (non-incremental processing only)
         }
         if constexpr (isIncNonRiched || isIncRiched) {
             if (!wins.empty() && !res_opened) {
@@ -465,7 +450,7 @@ public:
             }
         }
         typename std::deque<result_t>::iterator result_it_list = _win_results.begin();
-        for (auto &win: wins) { // evaluate all the open windows
+        for (auto &win: wins) { // evaluate all the open windows of the key
             win_event_t event = win.onTuple(_tuple, index, _timestamp); // get the event
             if (event == win_event_t::IN) { // window is not fired
                 if constexpr (isIncNonRiched) { // incremental and non-riched
@@ -479,97 +464,43 @@ public:
                 }
             }
             else if (event == win_event_t::FIRED) { // window is fired
-                if ((this->execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
-                    uint64_t win_start = win.getLWID()*slide_len; // local id of window to calculate boundaries
-                    uint64_t win_end = win_start+win_len-1;
-                    bool isEmpty = win.getSize() <= 0; // if win is empty i just return an empty iterator
+                if ((winType == Win_Type_t::CB) || (this->execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
+                    std::optional<wrapper_t> t_s = win.getFirstTuple();
+                    std::optional<wrapper_t> t_e = win.getLastTuple();
                     if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
-                        uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
-                        uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-
                         std::pair<input_iterator_t, input_iterator_t> its;
                         std::deque<wrapper_t> history_buffer;
-                        if (!isEmpty) {
-                            // non-empty window
-                            history_buffer = get_history_buffer(win_start, win_end, false);
-
-                            std::set<key_t> window_keys;
-                            auto group_start = history_buffer.begin();
-                            while (group_start != history_buffer.end())
-                            {
-                                key_t group_key = key_extr(group_start->tuple);
-#ifdef P_DEBUG
-                                std::cout << "pw: PROCESS.FIRED key: " << group_key << std::endl;
-#endif
-                                // trovo la fine del gruppo
-                                auto group_end = std::find_if(group_start, history_buffer.end(), [this, &group_key](const wrapper_t &w) { 
-                                    key_t key = this->key_extr(w.tuple);
-                                    return key != group_key; 
-                                });
-
-                                // tupla con minimo indice della finestra
-                                auto win_start_it = std::find_if(group_start, group_end, [this, &win_start](const wrapper_t &w) { 
-                                    return w.index >= win_start; 
-                                });
-                                // tupla con massimo indice della finestra
-                                auto win_end_it = std::find_if(group_start, group_end, [this, &win_end](const wrapper_t &w) { 
-                                    return w.index > win_end; 
-                                });
-
-                                if (win_start_it != group_end && win_start_it != win_end_it)
-                                {
-                                    // intervallo valido, lo invio alla funzione
-                                    window_keys.insert(group_key);
-                                    Iterable<tuple_t> iter(win_start_it, win_end_it);
-                                    result_t res = create_win_result_t<result_t, key_t>(group_key, win.getGWID());
-                                    if constexpr (isNonIncNonRiched) { // non-riched
-                                        func(iter, res);
-                                    }
-                                    if constexpr (isNonIncRiched) { // riched
-                                        func(iter, res, this->context);
-                                    }
-#ifdef P_DEBUG
-                                    for (auto &w : iter) {
-                                        std::cout <<  "\t >key: " << w.key << ", val: " << w.value << "<" << std::endl;
-                                    }
-                                    std::cout << "\t RESULT: " << res.value << std::endl;
-#endif
-                                    this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
-                                }
-
-                                group_start = group_end;
-                            }
-
-                            // differenza tra chiavi della replica e chiavi con dati, per inviare iteratori vuoti
-                            std::set<key_t> difference;
-                            std::set_difference(seen_keys.begin(), seen_keys.end(),
-                                                window_keys.begin(), window_keys.end(),
-                                                std::inserter(difference, difference.begin()));
-                            for (const auto &key : difference)
-                            {
-                                Iterable<tuple_t> empty_it(getEnd(), getEnd());
-                                result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
-                                if constexpr (isNonIncNonRiched) { // non-riched
-                                    func(empty_it, res);
-                                }
-                                if constexpr (isNonIncRiched) { // riched
-                                    func(empty_it, res, this->context);
-                                }
-
-                                this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
-                            }
+                        if (!t_s) { // empty window
+                            its.first = getEnd(key_d);
+                            its.second = getEnd(key_d);
                         }
-                        
-                        if (!isEmpty) { // purge tuples from the archive
-                            purge(win_start);
+                        else { // non-empty window
+                            history_buffer = get_history_buffer(*t_s, *t_e, false, key_d, key);
+                            its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
+                            its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
+                        }
+                        Iterable<tuple_t> iter(its.first, its.second);
+                        result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
+                        if constexpr (isNonIncNonRiched) { // non-riched
+                            func(iter, res);
+                        }
+                        if constexpr (isNonIncRiched) { // riched
+                            (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+                            func(iter, res, this->context);
+                        }
+                        if (t_s) { // purge tuples from the archive
+                            purge(*t_s, key_d, key);
                         }
                         cnt_fired++;
-                        last_lwid++;
+                        key_d.last_lwid++;
+                        uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
+                        uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
+                        this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
                     }
                     else {
                         result_t &res = *result_it_list;
                         cnt_fired++;
-                        last_lwid++;
+                        key_d.last_lwid++;
                         uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
                         uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
                         this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
@@ -594,113 +525,64 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id) override
     {
-        if (isIncNonRiched || isIncRiched) {
-            // INCREMENTALE
-            for (auto &key: seen_keys) { // iterate over all the keys
-                std::deque<result_t> _win_results; // used only by incremental processing
-                if constexpr (isIncNonRiched || isIncRiched) {
-                    _win_results = mydb_results->get_list_result(key);
-                }
-                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                for (auto &res: _win_results) {
+        for (auto &k: keyMap) { // iterate over all the keys
+            key_t key = (k.first);
+            Key_Descriptor &key_d = (k.second);
+            std::deque<result_t> _win_results; // used only by incremental processing
+            typename std::deque<result_t>::iterator result_it_list;
+            if constexpr (isIncNonRiched || isIncRiched) {
+                _win_results = mydb_results->get_list_result(key);
+                result_it_list = _win_results.begin();
+            }
+            auto &wins = key_d.wins;
+            for (auto &win: wins) { // iterate over all the windows of the key
+                if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
+                    std::optional<wrapper_t> t_s = win.getFirstTuple();
+                    std::optional<wrapper_t> t_e = win.getLastTuple();
+                    std::pair<input_iterator_t, input_iterator_t> its;
+                    std::deque<wrapper_t> history_buffer;
+                    if (!t_s) { // empty window
+                        its.first = getEnd(key_d);
+                        its.second = getEnd(key_d);
+                    }
+                    else { // non-empty window
+                        if (!t_e) {
+                            history_buffer = get_history_buffer(*t_s, *t_s, true, key_d, key);
+                            its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
+                            its.second = history_buffer.end();
+                        }
+                        else {
+                            history_buffer = get_history_buffer(*t_s, *t_e, false, key_d, key);
+                            its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
+                            its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
+                        }
+                    }
+                    Iterable<tuple_t> iter(its.first, its.second);
+                    result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
+                    if constexpr (isNonIncNonRiched) { // non-riched
+                        func(iter, res);
+                    }
+                    if constexpr (isNonIncRiched) { // riched
+                        func(iter, res, this->context);
+                    }
+                    uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
                     this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
                 }
-                mydb_results->put(_win_results, key);
-            }
-        } else {
-            // NON INCREMENTALE
-            for (auto &win: wins) { // iterate over all the windows of the key
-                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-
-                uint64_t win_start = win.getLWID()*slide_len; // local id of window to calculate boundaries
-                uint64_t win_end = win_start+win_len-1;
-                bool isEmpty = win.getSize() <= 0; // if win is empty i just return an empty iterator
-            
-                std::pair<input_iterator_t, input_iterator_t> its;
-                std::deque<wrapper_t> history_buffer;
-#ifdef P_DEBUG
-                std::cout << "pw: PROCESS.FOR win_start: " << win_start << ", win_end: " << win_end << std::endl;
-#endif
-                if (!isEmpty) {
-                    // TODO eseguire e vedere se ha senso che sia uguale a process_input, eliminando la parte che controlla se t_e esiste
-                    // non-empty window
-                    history_buffer = get_history_buffer(win_start, win_end, false);
-
-                    std::set<key_t> window_keys;
-                    auto group_start = history_buffer.begin();
-                    while (group_start != history_buffer.end())
-                    {
-                        key_t group_key = key_extr(group_start->tuple);
-#ifdef P_DEBUG
-                        std::cout << "pw: PROCESS.FIRED key: " << group_key << std::endl;
-#endif
-                        // trovo la fine del gruppo
-                        auto group_end = std::find_if(group_start, history_buffer.end(), [this, &group_key](const wrapper_t &w) { 
-                            key_t key = this->key_extr(w.tuple);
-                            return key != group_key; 
-                        });
-
-                        // tupla con minimo indice della finestra
-                        auto win_start_it = std::find_if(group_start, group_end, [this, &win_start](const wrapper_t &w) { 
-                            return w.index >= win_start; 
-                        });
-                        // tupla con massimo indice della finestra
-                        auto win_end_it = std::find_if(group_start, group_end, [this, &win_end](const wrapper_t &w) { 
-                            return w.index > win_end; 
-                        });
-#ifdef P_DEBUG
-                        std::cout << "win_start_it: " << (*win_start_it).index << ", win_end_it: " << (*win_end_it).index << std::endl;
-#endif
-                        if (win_start_it != group_end && win_start_it != win_end_it)
-                        {
-                            // intervallo valido, lo invio alla funzione
-                            window_keys.insert(group_key);
-                            Iterable<tuple_t> iter(win_start_it, win_end_it);
-                            result_t res = create_win_result_t<result_t, key_t>(group_key, win.getGWID());
-                            if constexpr (isNonIncNonRiched) { // non-riched
-                                func(iter, res);
-                            }
-                            if constexpr (isNonIncRiched) { // riched
-                                func(iter, res, this->context);
-                            }
-#ifdef P_DEBUG
-                            for (auto &w : iter) {
-                                std::cout <<  "\t >key: " << w.key << ", val: " << w.value << "<" << std::endl;
-                            }
-                            std::cout << "\t RESULT: " << res.value << std::endl;
-#endif
-                            this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
-                        }
-
-                        group_start = group_end;
-                    }
-
-                    // differenza tra chiavi della replica e chiavi con dati, per inviare iteratori vuoti
-                    std::set<key_t> difference;
-                    std::set_difference(seen_keys.begin(), seen_keys.end(),
-                                        window_keys.begin(), window_keys.end(),
-                                        std::inserter(difference, difference.begin()));
-                    for (const auto &key : difference)
-                    {
-                        Iterable<tuple_t> empty_it(getEnd(), getEnd());
-                        result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
-                        if constexpr (isNonIncNonRiched) { // non-riched
-                            func(empty_it, res);
-                        }
-                        if constexpr (isNonIncRiched) { // riched
-                            func(empty_it, res, this->context);
-                        }
-
-                        this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
-                    }
+                else {
+                    result_t &res = *result_it_list;
+                    uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                    this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
+                    result_it_list++;
                 }
-    #if defined(WF_TRACING_ENABLED)
+#if defined(WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(result_t);
-    #endif
+#endif
+            }
+            if constexpr (isIncNonRiched || isIncRiched) { // I don't think this part is really necessary
+                mydb_results->put(_win_results, key);
             }
         }
-
         Basic_Replica::eosnotify(id);
     }
 

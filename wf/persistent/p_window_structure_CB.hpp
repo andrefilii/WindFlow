@@ -33,8 +33,8 @@
  *  streaming windows with persistent operators.
  */ 
 
-#ifndef P_WINDOW_TB_H
-#define P_WINDOW_TB_H
+#ifndef P_WINDOW_CB_H
+#define P_WINDOW_CB_H
 
 // includes
 #include<optional>
@@ -44,12 +44,13 @@
 namespace wf {
 
 // class P_Window
-template<typename tuple_t, typename result_t>
-class P_Window
+template<typename tuple_t, typename result_t, typename key_t>
+class P_Window_CB
 {
 private:
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using triggerer_t = std::function<win_event_t(uint64_t)>; // triggerer type of the window
+    key_t key; // key attribute of the window
     uint64_t lwid; // local identifier of the window (starting from zero)
     uint64_t gwid; // global identifier of the window (starting from zero)
     triggerer_t triggerer; // triggerer used by the window
@@ -61,12 +62,14 @@ private:
 
 public:
     // Constructor
-    P_Window(uint64_t _lwid,
+    P_Window(key_t _key,
+             uint64_t _lwid,
              uint64_t _gwid,
              triggerer_t _triggerer,
              Win_Type_t _winType,
              uint64_t _win_len,
              uint64_t _slide_len):
+             key(_key),
              lwid(_lwid),
              gwid(_gwid),
              triggerer(_triggerer),
@@ -138,7 +141,6 @@ public:
         }
     }
 
-// TODO eliminare first e last tuple, si può fare tutto con size e lwid
     // Get an optional to the first wrapped tuple
     std::optional<wrapper_t> getFirstTuple() const
     {
@@ -149,6 +151,12 @@ public:
     std::optional<wrapper_t> getLastTuple() const
     {
         return lastTuple;
+    }
+
+    // Get the key attribute of the window
+    key_t getKEY() const
+    {
+        return key;
     }
 
     // Get the local window identifier
