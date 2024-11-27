@@ -257,6 +257,8 @@ int main(int argc, char *argv[])
     cout << "Exiting" << endl;
     double elapsed_time_seconds = (end_time_main_usecs - start_time_main_usecs) / (1000000.0);
     double throughput = sent_tuples / elapsed_time_seconds;
+    cout << "Elapsed time: " << elapsed_time_seconds << " seconds" << endl;
+    cout << "Sent tuples: " << sent_tuples << endl;
     cout << "Measured throughput: " << (size_t)throughput << " tuples/second" << endl;
     cout << "Dumping metrics" << endl;
     util::metric_group.dump_all();
