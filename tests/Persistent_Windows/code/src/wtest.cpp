@@ -267,6 +267,8 @@ int main(int argc, char *argv[])
     cout << "Measured throughput: " << (size_t)throughput << " tuples/second" << endl;
     cout << "Average window size: " << (double)size_win_tot / tot_wins << endl;
     cout << "Max window size: " << max_win_size << endl;
+    cout << "Average window size: " << (double)size_win_tot / tot_wins << endl;
+    cout << "Max window size: " << max_win_size << endl;
     cout << "Dumping metrics" << endl;
     util::metric_group.dump_all();
     return 0;
