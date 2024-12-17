@@ -14,7 +14,7 @@ terminate() {
 trap terminate SIGINT
 
 # vari slide su cui vengono effettuati i test (90% 50% 10% overlapping)
-SLIDES=(3000000 15000000 27000000)
+SLIDES=(15000000)
 
 # cap di memoria (32GB): se viene superato il programma viene killato
 MEM_CAP=32000000
@@ -26,7 +26,7 @@ for S in "${SLIDES[@]}"; do
     OUTPUT_FILE="output_${S}.log"
 
     # esecuzione programma
-    ./wtest -y 0 -x 32 -r 7 -l 1 -m 256 -p 3 -w 30000000 -s $S -k 1000 > $OUTPUT_FILE 2>&1 &
+    ./wtest -y 0 -x 32 -r 7 -l 1 -m 256 -p 4 -w 30000000 -s $S -k 1000 > $OUTPUT_FILE 2>&1 &
     PID=$!
     CUR_PID=$PID
 
