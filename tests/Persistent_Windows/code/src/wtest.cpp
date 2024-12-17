@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
     Source_Functor source_functor(app_start_time, 16, n_keys);
     Source source = Source_Builder(source_functor)
                         .withName("source")
-                        .withParallelism(parallelism)
+                        .withParallelism(1)
                         .build();
     MultiPipe &mp = graph.add_source(source);
 
@@ -260,6 +260,8 @@ int main(int argc, char *argv[])
     cout << "Elapsed time: " << elapsed_time_seconds << " seconds" << endl;
     cout << "Sent tuples: " << sent_tuples << endl;
     cout << "Measured throughput: " << (size_t)throughput << " tuples/second" << endl;
+    cout << "Average window size: " << (double)size_win_tot / tot_wins << endl;
+    cout << "Max window size: " << max_win_size << endl;
     cout << "Dumping metrics" << endl;
     util::metric_group.dump_all();
     return 0;
