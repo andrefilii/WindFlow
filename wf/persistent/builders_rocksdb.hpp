@@ -1505,7 +1505,8 @@ public:
                               win_len,
                               slide_len,
                               lateness,
-                              winType);
+                              winType,
+                              true); // TODO rendere modificabile
     }
 };
 
