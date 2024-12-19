@@ -74,7 +74,6 @@ namespace wf
         win_func_t func;                                                                      // functional logic used by the Keyed_Windows
         keyextr_func_t key_extr;                                                              // logic to extract the key attribute from the tuple_t
         std::vector<P_Window_Replica_TB_NINC<win_func_t, keyextr_func_t> *> replicas;                 // vector of pointers to the replicas of the P_Keyed_Windows
-        std::vector<P_Window_Replica<win_func_t, keyextr_func_t> *> replicas_TB_NINC; // vector of pointers to the replicas of the P_Keyed_Windows_TB_NINC
         uint64_t win_len;                                                                     // window length (in no. of tuples or in time units)
         uint64_t slide_len;                                                                   // slide length (in no. of tuples or in time units)
         uint64_t lateness;                                                                    // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
@@ -94,40 +93,19 @@ namespace wf
         // Configure the P_Keyed_Windows to receive batches instead of individual inputs
         void receiveBatches(bool _input_batching) override
         {
-            if (is_TB_NINC)
+            for (auto *r : replicas)
             {
-                for (auto *r : replicas_TB_NINC)
-                {
-                    r->receiveBatches(_input_batching);
-                }
-            }
-            else
-            {
-                for (auto *r : replicas)
-                {
-                    r->receiveBatches(_input_batching);
-                }
+                r->receiveBatches(_input_batching);
             }
         }
 
         // Set the emitter used to route outputs from the P_Keyed_Windows
         void setEmitter(Basic_Emitter *_emitter) override
         {
-            if (is_TB_NINC)
+            replicas[0]->setEmitter(_emitter);
+            for (size_t i = 1; i < replicas.size(); i++)
             {
-                replicas_TB_NINC[0]->setEmitter(_emitter);
-                for (size_t i = 1; i < replicas_TB_NINC.size(); i++)
-                {
-                    replicas_TB_NINC[i]->setEmitter(_emitter->clone());
-                }
-            }
-            else
-            {
-                replicas[0]->setEmitter(_emitter);
-                for (size_t i = 1; i < replicas.size(); i++)
-                {
-                    replicas[i]->setEmitter(_emitter->clone());
-                }
+                replicas[i]->setEmitter(_emitter->clone());
             }
         }
 
@@ -135,19 +113,9 @@ namespace wf
         bool isTerminated() const override
         {
             bool terminated = true;
-            if (is_TB_NINC)
-            {
-                for (auto *r : replicas_TB_NINC)
-                { // scan all the replicas to check their termination
-                    terminated = terminated && r->isTerminated();
-                }
-            }
-            else
-            {
-                for (auto *r : replicas)
-                { // scan all the replicas to check their termination
-                    terminated = terminated && r->isTerminated();
-                }
+            for (auto *r : replicas)
+            { // scan all the replicas to check their termination
+                terminated = terminated && r->isTerminated();
             }
 
             return terminated;
@@ -156,19 +124,9 @@ namespace wf
         // Set the execution mode of the P_Keyed_Windows
         void setExecutionMode(Execution_Mode_t _execution_mode)
         {
-            if (is_TB_NINC)
+            for (auto *r : replicas)
             {
-                for (auto *r : replicas_TB_NINC)
-                {
-                    r->setExecutionMode(_execution_mode);
-                }
-            }
-            else
-            {
-                for (auto *r : replicas)
-                {
-                    r->setExecutionMode(_execution_mode);
-                }
+                r->setExecutionMode(_execution_mode);
             }
         }
 
@@ -289,133 +247,65 @@ namespace wf
                 exit(EXIT_FAILURE);
             }
 
-            is_TB_NINC = !((isNonIncRiched || isNonIncNonRiched) && winType == Win_Type_t::TB);
+            is_TB_NINC = ((isNonIncRiched || isNonIncNonRiched) && winType == Win_Type_t::TB);
 
-            if (is_TB_NINC)
-            {
-                auto &replicas = replicas_TB_NINC;
-                for (size_t i = 0; i < this->parallelism; i++)
-                { // create the internal replicas of the P_Keyed_Windows
-                    std::string shared_dbpath = _dbpath + this->name;
-                    std::string normal_dbpath = shared_dbpath + "_" + std::to_string(i);
-                    replicas.push_back(new P_Window_Replica<win_func_t, keyextr_func_t>(func,
-                                                                                                key_extr,
-                                                                                                this->name,
-                                                                                                _sharedDb ? shared_dbpath : normal_dbpath,
-                                                                                                RuntimeContext(this->parallelism, i),
-                                                                                                _closing_func,
-                                                                                                _tuple_serialize,
-                                                                                                _tuple_deserialize,
-                                                                                                _result_serialize,
-                                                                                                _result_deserialize,
-                                                                                                _deleteDb,
-                                                                                                _sharedDb,
-                                                                                                i,
-                                                                                                _frag_size,
-                                                                                                win_len,
-                                                                                                slide_len,
-                                                                                                lateness,
-                                                                                                winType
-                                                                                                ));
-                }
-                assert(this->parallelism > 0);
-                // initialize the internal DB of the replicas
-                if ((replicas[0]->mydb_wrappers) != nullptr)
-                {
-                    (replicas[0]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
-                }
-                if ((replicas[0]->mydb_results) != nullptr)
-                {
-                    (replicas[0]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
-                }
-                for (size_t i = 1; i < this->parallelism; i++)
-                {
-                    if (_sharedDb)
-                    {
-                        if ((replicas[0]->mydb_wrappers) != nullptr)
-                        {
-                            assert((replicas[i]->mydb_wrappers) != nullptr); // sanity check
-                            (replicas[i]->mydb_wrappers)->initDB((replicas[0]->mydb_wrappers)->get_internal_db(), _options, _read_options, _write_options);
-                        }
-                        if ((replicas[0]->mydb_results) != nullptr)
-                        {
-                            assert((replicas[i]->mydb_results) != nullptr); // sanity check
-                            (replicas[i]->mydb_results)->initDB((replicas[0]->mydb_results)->get_internal_db(), _options, _read_options, _write_options);
-                        }
-                    }
-                    else
-                    {
-                        if ((replicas[i]->mydb_wrappers) != nullptr)
-                        {
-                            (replicas[i]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
-                        }
-                        if ((replicas[i]->mydb_results) != nullptr)
-                        {
-                            (replicas[i]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
-                        }
-                    }
-                }
+            for (size_t i = 0; i < this->parallelism; i++)
+            { // create the internal replicas of the P_Keyed_Windows
+                std::string shared_dbpath = _dbpath + this->name;
+                std::string normal_dbpath = shared_dbpath + "_" + std::to_string(i);
+                replicas.push_back(new P_Window_Replica_TB_NINC<win_func_t, keyextr_func_t>(func,
+                                                                                    key_extr,
+                                                                                    this->name,
+                                                                                    _sharedDb ? shared_dbpath : normal_dbpath,
+                                                                                    RuntimeContext(this->parallelism, i),
+                                                                                    _closing_func,
+                                                                                    _tuple_serialize,
+                                                                                    _tuple_deserialize,
+                                                                                    _result_serialize,
+                                                                                    _result_deserialize,
+                                                                                    _deleteDb,
+                                                                                    _sharedDb,
+                                                                                    i,
+                                                                                    _frag_size,
+                                                                                    win_len,
+                                                                                    slide_len,
+                                                                                    lateness,
+                                                                                    winType, _sort_enabled));
             }
-            else
+            assert(this->parallelism > 0);
+            // initialize the internal DB of the replicas
+            if ((replicas[0]->mydb_wrappers) != nullptr)
             {
-                for (size_t i = 0; i < this->parallelism; i++)
-                { // create the internal replicas of the P_Keyed_Windows
-                    std::string shared_dbpath = _dbpath + this->name;
-                    std::string normal_dbpath = shared_dbpath + "_" + std::to_string(i);
-                    replicas.push_back(new P_Window_Replica_TB_NINC<win_func_t, keyextr_func_t>(func,
-                                                                                        key_extr,
-                                                                                        this->name,
-                                                                                        _sharedDb ? shared_dbpath : normal_dbpath,
-                                                                                        RuntimeContext(this->parallelism, i),
-                                                                                        _closing_func,
-                                                                                        _tuple_serialize,
-                                                                                        _tuple_deserialize,
-                                                                                        _result_serialize,
-                                                                                        _result_deserialize,
-                                                                                        _deleteDb,
-                                                                                        _sharedDb,
-                                                                                        i,
-                                                                                        _frag_size,
-                                                                                        win_len,
-                                                                                        slide_len,
-                                                                                        lateness,
-                                                                                        winType, _sort_enabled));
-                }
-                assert(this->parallelism > 0);
-                // initialize the internal DB of the replicas
-                if ((replicas[0]->mydb_wrappers) != nullptr)
+                (replicas[0]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
+            }
+            if ((replicas[0]->mydb_results) != nullptr)
+            {
+                (replicas[0]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
+            }
+            for (size_t i = 1; i < this->parallelism; i++)
+            {
+                if (_sharedDb)
                 {
-                    (replicas[0]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
-                }
-                if ((replicas[0]->mydb_results) != nullptr)
-                {
-                    (replicas[0]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
-                }
-                for (size_t i = 1; i < this->parallelism; i++)
-                {
-                    if (_sharedDb)
+                    if ((replicas[0]->mydb_wrappers) != nullptr)
                     {
-                        if ((replicas[0]->mydb_wrappers) != nullptr)
-                        {
-                            assert((replicas[i]->mydb_wrappers) != nullptr); // sanity check
-                            (replicas[i]->mydb_wrappers)->initDB((replicas[0]->mydb_wrappers)->get_internal_db(), _options, _read_options, _write_options);
-                        }
-                        if ((replicas[0]->mydb_results) != nullptr)
-                        {
-                            assert((replicas[i]->mydb_results) != nullptr); // sanity check
-                            (replicas[i]->mydb_results)->initDB((replicas[0]->mydb_results)->get_internal_db(), _options, _read_options, _write_options);
-                        }
+                        assert((replicas[i]->mydb_wrappers) != nullptr); // sanity check
+                        (replicas[i]->mydb_wrappers)->initDB((replicas[0]->mydb_wrappers)->get_internal_db(), _options, _read_options, _write_options);
                     }
-                    else
+                    if ((replicas[0]->mydb_results) != nullptr)
                     {
-                        if ((replicas[i]->mydb_wrappers) != nullptr)
-                        {
-                            (replicas[i]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
-                        }
-                        if ((replicas[i]->mydb_results) != nullptr)
-                        {
-                            (replicas[i]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
-                        }
+                        assert((replicas[i]->mydb_results) != nullptr); // sanity check
+                        (replicas[i]->mydb_results)->initDB((replicas[0]->mydb_results)->get_internal_db(), _options, _read_options, _write_options);
+                    }
+                }
+                else
+                {
+                    if ((replicas[i]->mydb_wrappers) != nullptr)
+                    {
+                        (replicas[i]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
+                    }
+                    if ((replicas[i]->mydb_results) != nullptr)
+                    {
+                        (replicas[i]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
                     }
                 }
             }
@@ -430,42 +320,20 @@ namespace wf
                                                          lateness(_other.lateness),
                                                          winType(_other.winType)
         {
-            is_TB_NINC = !((isNonIncRiched || isNonIncNonRiched) && winType == Win_Type_t::TB);
+            is_TB_NINC = ((isNonIncRiched || isNonIncNonRiched) && winType == Win_Type_t::TB);
 
-            std::cout << "Copia pwin " << is_TB_NINC << std::endl;
-
-            if (is_TB_NINC)
-            {
-                for (size_t i = 0; i < this->parallelism; i++)
-                { // deep copy of the pointers to the Keyed_Windows replicas
-                    replicas_TB_NINC.push_back(new P_Window_Replica<win_func_t, keyextr_func_t>(*(_other.replicas_TB_NINC[i])));
-                }
-            }
-            else
-            {
-                for (size_t i = 0; i < this->parallelism; i++)
-                { // deep copy of the pointers to the Keyed_Windows replicas
-                    replicas.push_back(new P_Window_Replica_TB_NINC<win_func_t, keyextr_func_t>(*(_other.replicas[i])));
-                }
+            for (size_t i = 0; i < this->parallelism; i++)
+            { // deep copy of the pointers to the Keyed_Windows replicas
+                replicas.push_back(new P_Window_Replica_TB_NINC<win_func_t, keyextr_func_t>(*(_other.replicas[i])));
             }
         }
 
         // Destructor
         ~P_Keyed_Windows() override
         {
-            if (is_TB_NINC)
-            {
-                for (auto *r : replicas_TB_NINC)
-                { // delete all the replicas
-                    delete r;
-                }
-            }
-            else
-            {
-                for (auto *r : replicas)
-                { // delete all the replicas
-                    delete r;
-                }
+            for (auto *r : replicas)
+            { // delete all the replicas
+                delete r;
             }
         }
 
@@ -494,19 +362,9 @@ namespace wf
         size_t getNumIgnoredTuples() const
         {
             size_t count = 0;
-            if (is_TB_NINC)
+            for (auto *r : replicas)
             {
-                for (auto *r : replicas_TB_NINC)
-                {
-                    count += r->getNumIgnoredTuples();
-                }
-            }
-            else
-            {
-                for (auto *r : replicas)
-                {
-                    count += r->getNumIgnoredTuples();
-                }
+                count += r->getNumIgnoredTuples();
             }
             return count;
         }
