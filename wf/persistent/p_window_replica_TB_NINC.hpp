@@ -94,28 +94,14 @@ private:
     DBHandle<tuple_t> *mydb_wrappers; // pointer to the DBHandle object used to interact with RocksDB
     DBHandle<result_t> *mydb_results; // pointer to the DBHandle object used to interact with RocksDB
 
-    struct Key_Descriptor // struct of a key descriptor
-    {
-        std::vector<win_t> wins; // open windows of this key
-        std::deque<wrapper_t> actual_memory; // in-memoty buffer of tuples used by non-incremental logic only
-        std::deque<meta_frag_t> frags; // fragments metadata of this key
-        size_t frag_keys = 0; // counter of fragments produced for this key
-        index_t min, max; // min and max indexes in the in-memory buffer
-        uint64_t next_lwid = 0; // next window to be opened of this key (lwid)
-        int64_t last_lwid = -1; // last window closed of this key (lwid)
-        uint64_t next_input_id = 0; // identifier of the next tuple of this key
-    };
-
     std::map<uint64_t, win_t> wins; // open windows
     std::map<uint64_t, std::deque<wrapper_t>> buffer_map; // open window buffers
     uint64_t next_lwid = 0; // next window to be opened of this key (lwid)
     int64_t last_lwid = -1; // last window closed of this key (lwid)
-    uint64_t next_input_id = 0; // identifier of the next tuple of this key
 
     bool sort_enabled;
     std::set<key_t> seen_keys;
 
-    std::unordered_map<key_t, Key_Descriptor> keyMap; // hashtable mapping keys to Key_Descriptor structures
     compare_func_t compare_func = [](const wrapper_t &w1, const wrapper_t &w2) { return w1.index < w2.index; }; // function to compare two wrapped tuples
     compare_func_index_t geqt = [](const index_t &w1, const index_t &w2) { return w1 >= w2; }; // geq function between indexes
     compare_func_index_t leqt = [](const index_t &w1, const index_t &w2) { return w1 <= w2; }; // leq function between indexes
@@ -289,8 +275,7 @@ public:
                      Basic_Replica(_other),
                      func(_other.func),
                      key_extr(_other.key_extr),
-                     n_max_elements(_other.n_max_elements),
-                     keyMap(_other.keyMap),          
+                     n_max_elements(_other.n_max_elements),     
                      compare_func(_other.compare_func),
                      geqt(_other.geqt),
                      leqt(_other.leqt),
@@ -376,7 +361,7 @@ public:
                        uint64_t _watermark)
     {
 #ifdef DEBUG_MODE
-        std::cout << "PW::process_input CALLED idx:" << _timestamp << " wm:" << _watermark << " t:" << _tuple.value << std::endl;
+        std::cout << "PW::process_input CALLED idx:" << _timestamp << " wm:" << _watermark << std::endl;
 #endif
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
@@ -412,8 +397,7 @@ public:
             uint64_t n = floor((double)(index - initial_index) / slide_len);
             last_w = n;
         }
-        std::deque<result_t> _win_results; // used only by incremental processing
-        bool res_opened = false; // used only by incremental processing
+
         for (long lwid = next_lwid; lwid <= last_w; lwid++) { // create all the new opened windows
             uint64_t gwid = first_gwid_key + lwid; // translate lwid -> gwid
             wins.insert({lwid, win_t(lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_index), win_len, slide_len)});
@@ -421,7 +405,6 @@ public:
         }
         size_t cnt_fired = 0;
         insert(wrapper_t(_tuple, index)); // insert the wrapped tuple in the archive of the key (non-incremental processing only)
-        typename std::deque<result_t>::iterator result_it_list = _win_results.begin();
 
         std::vector<uint64_t> wins_to_delete;
         for (auto &pair: wins) { // evaluate all the open windows
@@ -430,6 +413,9 @@ public:
             uint64_t lwid = win.getLWID(); // local id of window to calculate boundaries
             win_event_t event = win.onTuple(_tuple, index, _timestamp); // get the event
             if (event == win_event_t::FIRED) { // window is fired
+#ifdef DEBUG_MODE
+        std::cout << "PW::process_input IS FIRED lwid:" << lwid << " res_ts:" << win.getResultTimestamp() << " lateness:" << lateness << " wm:" << _watermark << std::endl;
+#endif
                 if ((this->execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
                     // per l'invio dei risultati
                     uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
@@ -521,8 +507,8 @@ public:
                     (this->stats_record).outputs_sent++;
                     (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
+                    wins_to_delete.push_back(pair.first);
                 }
-                wins_to_delete.push_back(pair.first);
             }
         }
 

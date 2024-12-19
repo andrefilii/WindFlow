@@ -34,7 +34,7 @@
  */ 
 
 #ifndef P_WINDOW_TB_NINC_H
-#define P_WINDOW_H
+#define P_WINDOW_TB_NINC_H
 
 // includes
 #include<optional>
