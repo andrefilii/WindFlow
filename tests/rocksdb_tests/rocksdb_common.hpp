@@ -29,6 +29,7 @@
 #include<cmath>
 #include<string>
 #include<vector>
+#include<cinttypes> // Necessario per PRId64
 
 using namespace std;
 using namespace wf;
@@ -565,8 +566,14 @@ public:
     void operator()(const Iterable<tuple_t> &win, result_t &result)
     {
         result.value = 0;
-        for (size_t i=0; i<win.size(); i++) {
-            result.value += win[i].value;
+        auto size = win.size();
+        if (size > 0)
+        {
+            for (size_t i=0; i<size; i++) {
+                result.value += win[i].value;
+            }
+        } else {
+            result.value = -1;
         }
     }
 };
@@ -590,8 +597,8 @@ public:
         if (out) {
             auto result = out.value();
             received++;
-            totalsum += result.value;
-            std::printf("{key: %lu, lwid: %lu, value: %lu}\n", result.key, result.wid, result.value);
+            if (result.value > 0) totalsum += result.value;
+            std::printf("{key: %lu, lwid: %lu, value: %" PRId64 "}\n", result.key, result.wid, result.value);
             // cout << "{key:" << (*out).key << ", lwid:" << (*out).wid << ", value:" << (*out).value << "}" << endl;
         }
         else {
