@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
     size_t win_len = 1500;
     size_t key_buff; // Buffer size of fragment
     size_t shared = 0;
+    size_t batch_size = 16;
     // arguments from command line
     if (argc != 19)
     {
@@ -120,6 +121,7 @@ int main(int argc, char *argv[])
     Source source = Source_Builder(source_functor)
                         .withName("source")
                         .withParallelism(1)
+                        .withOutputBatchSize(batch_size)
                         .build();
     MultiPipe &mp = graph.add_source(source);
 
@@ -232,6 +234,7 @@ int main(int argc, char *argv[])
                                     .withOptions(_myopt)
                                     .setFragmentSize(key_buff)
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
+                                    .withOutputBatchSize(batch_size)
                                     .build();
         mp.add(kwins);
     }
@@ -240,6 +243,7 @@ int main(int argc, char *argv[])
     Filter filter = Filter_Builder(filter_functor)
                         .withName("filter")
                         .withParallelism(parallelism)
+                        .withOutputBatchSize(batch_size)
                         .build();
     mp.add(filter);
 
@@ -247,6 +251,7 @@ int main(int argc, char *argv[])
     Sink sink = Sink_Builder(sink_functor)
                     .withName("sink")
                     .withParallelism(parallelism)
+
                     .build();
     mp.add_sink(sink);
 
