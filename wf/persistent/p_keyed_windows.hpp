@@ -215,7 +215,8 @@ public:
                     uint64_t _win_len,
                     uint64_t _slide_len,
                     uint64_t _lateness,
-                    Win_Type_t _winType):
+                    Win_Type_t _winType,
+                    size_t _cacheCapacity):
                     Basic_Operator(_parallelism, _name, Routing_Mode_t::KEYBY, _outputBatchSize),
                     func(_func),
                     key_extr(_key_extr),
@@ -248,7 +249,8 @@ public:
                                                                                 win_len,
                                                                                 slide_len,
                                                                                 lateness,
-                                                                                winType));
+                                                                                winType,
+                                                                                _cacheCapacity));
         }
         assert(this->parallelism > 0);
         // initialize the internal DB of the replicas

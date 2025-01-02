@@ -1283,6 +1283,7 @@ private:
     uint64_t slide_len=0; // slide length in number of tuples or in time units
     uint64_t lateness=0; // lateness in time units
     Win_Type_t winType=Win_Type_t::CB; // window type (CB or TB)
+    size_t cacheCapacity = 0;
 
 public:
     /** 
@@ -1451,6 +1452,13 @@ public:
         return *this;
     }
 
+    auto &withCacheCapacity(size_t _cacheCapacity)
+    {
+        cacheCapacity = _cacheCapacity;
+
+        return *this;
+    }
+
     /** 
      *  \brief Create the P_Keyed_Windows
      *  
@@ -1505,7 +1513,8 @@ public:
                               win_len,
                               slide_len,
                               lateness,
-                              winType);
+                              winType,
+                              cacheCapacity);
     }
 };
 

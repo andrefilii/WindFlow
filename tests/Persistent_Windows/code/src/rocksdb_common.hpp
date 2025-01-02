@@ -8,6 +8,7 @@ using namespace wf;
 
 #include "../includes/util/sampler.hpp"
 #include "../includes/util/metric_group.hpp"
+#include "../includes/util/selfsimilar_int_distribution.h"
 
 // Global variable for the result
 atomic<uint64_t> sent_tuples;
@@ -68,73 +69,126 @@ private:
     const size_t max_value = (size_t)33;
     const size_t max_timestamp_offest = (size_t)5000;
     uint64_t max_next_ts = 0;
+    size_t skewed;
 
 public:
     // Constructor
     Source_Functor(const unsigned long _app_start_time,
                    const size_t _batch_size,
-                   size_t _keys) : keys(_keys), 
+                   size_t _keys,
+                   size_t _skewed) : keys(_keys), 
                                    app_start_time(_app_start_time),
                                    current_time(_app_start_time),
-                                   batch_size(_batch_size) {}
+                                   batch_size(_batch_size),
+                                   skewed(_skewed) {}
 
     // operator()
     void operator()(Source_Shipper<tuple_t> &shipper)
     {
-        current_time = current_time_nsecs(); // get the current time
-        static thread_local std::mt19937 generator1;
-        static thread_local std::mt19937 generator2;
-        static thread_local std::mt19937 generator3;
-        std::uniform_int_distribution<size_t> timestamp_distribution(0, max_timestamp_offest);
-        std::uniform_int_distribution<size_t> keys_distribution(0, keys);
-        std::uniform_int_distribution<size_t> tuple_value_distribution(0, max_value);
-        std::uniform_int_distribution<size_t> keys_set_distribution(keys/2, keys);
-
-        std::vector<size_t> all_keys(keys);
-        std::iota(all_keys.begin(), all_keys.end(), 0);
-
-        int iter=0;
-        int n;
-        while (current_time - app_start_time <= app_run_time) // generation loop
+        if (skewed == 0)
         {
-            if ((batch_size > 0) && (generated_tuples % batch_size == 0))
-            {
-                current_time = current_time_nsecs(); // get the new current time
-            }
-            if (batch_size == 0)
-            {
-                current_time = current_time_nsecs(); // get the new current time
-            }
+            current_time = current_time_nsecs(); // get the current time
+            static thread_local std::mt19937 generator1;
+            static thread_local std::mt19937 generator2;
+            static thread_local std::mt19937 generator3;
+            std::uniform_int_distribution<size_t> timestamp_distribution(0, max_timestamp_offest);
+            std::uniform_int_distribution<size_t> keys_distribution(0, keys);
+            std::uniform_int_distribution<size_t> tuple_value_distribution(0, max_value);
+            std::uniform_int_distribution<size_t> keys_set_distribution(keys/2, keys);
 
-            std::set<size_t> keys_to_send;
-            iter++;
-            if (iter%2 == 0) {
-                // seconda iterazione
-                keys_to_send.insert(all_keys.begin() + n, all_keys.end());
-            } else {
-                // prima iterazione
-                std::shuffle(all_keys.begin(), all_keys.end(), generator3);
-                n = keys_set_distribution(generator3);
-                keys_to_send.insert(all_keys.begin(), all_keys.begin() + n);
-            }
+            std::vector<size_t> all_keys(keys);
+            std::iota(all_keys.begin(), all_keys.end(), 0);
 
-            auto value = tuple_value_distribution(generator2);
-            auto timestamp = current_time_nsecs();
-            for (auto key : keys_to_send)
+            int iter=0;
+            int n;
+            while (current_time - app_start_time <= app_run_time) // generation loop
             {
-                tuple_t to_sent_tuple;
-                to_sent_tuple.key = key;
-                to_sent_tuple.value = value;
-                to_sent_tuple.timestamp = timestamp;
-                shipper.pushWithTimestamp(std::move(to_sent_tuple), next_ts);
-                shipper.setNextWatermark(next_ts);
-                
-                generated_tuples++;
+                if ((batch_size > 0) && (generated_tuples % batch_size == 0))
+                {
+                    current_time = current_time_nsecs(); // get the new current time
+                }
+                if (batch_size == 0)
+                {
+                    current_time = current_time_nsecs(); // get the new current time
+                }
+
+                std::set<size_t> keys_to_send;
+                iter++;
+                if (iter%2 == 0) {
+                    // seconda iterazione
+                    keys_to_send.insert(all_keys.begin() + n, all_keys.end());
+                } else {
+                    // prima iterazione
+                    std::shuffle(all_keys.begin(), all_keys.end(), generator3);
+                    n = keys_set_distribution(generator3);
+                    keys_to_send.insert(all_keys.begin(), all_keys.begin() + n);
+                }
+
+                auto value = tuple_value_distribution(generator2);
+                auto timestamp = current_time_nsecs();
+                for (auto key : keys_to_send)
+                {
+                    tuple_t to_sent_tuple;
+                    to_sent_tuple.key = key;
+                    to_sent_tuple.value = value;
+                    to_sent_tuple.timestamp = timestamp;
+                    shipper.pushWithTimestamp(std::move(to_sent_tuple), next_ts);
+                    shipper.setNextWatermark(next_ts);
+                    
+                    generated_tuples++;
+                }
+                auto offset = (timestamp_distribution(generator3) + 1);
+                next_ts += offset;
             }
-            auto offset = (timestamp_distribution(generator3) + 1);
-            next_ts += offset;
+            sent_tuples.fetch_add(generated_tuples); // save the number of generated tuples
+        } else {
+            // versione SKEWED
+            current_time = current_time_nsecs(); // get the current time
+            static thread_local std::mt19937 generator1;
+            static thread_local std::mt19937 generator2;
+            static thread_local std::mt19937 generator3;
+            static thread_local std::mt19937 generator4;
+            std::uniform_int_distribution<size_t> timestamp_distribution(0, max_timestamp_offest);
+            std::uniform_int_distribution<size_t> tuple_value_distribution(0, max_value);
+            std::uniform_int_distribution<size_t> keys_set_distribution( 0.02*keys, 0.2*keys );
+            selfsimilar_int_distribution<size_t> key_distribution(0, keys-1, 0.2);
+
+            while (current_time - app_start_time <= app_run_time) // generation loop
+            {
+                if ((batch_size > 0) && (generated_tuples % batch_size == 0))
+                {
+                    current_time = current_time_nsecs(); // get the new current time
+                }
+                if (batch_size == 0)
+                {
+                    current_time = current_time_nsecs(); // get the new current time
+                }
+
+                std::set<size_t> keys_to_send;
+                int extractions = keys_set_distribution(generator3);
+                for(int i = 0; i < extractions; i++)
+                {
+                    keys_to_send.insert(key_distribution(generator4));
+                }
+
+                auto value = tuple_value_distribution(generator2);
+                auto timestamp = current_time_nsecs();
+                for (auto key : keys_to_send)
+                {
+                    tuple_t to_sent_tuple;
+                    to_sent_tuple.key = key;
+                    to_sent_tuple.value = value;
+                    to_sent_tuple.timestamp = timestamp;
+                    shipper.pushWithTimestamp(std::move(to_sent_tuple), next_ts);
+                    shipper.setNextWatermark(next_ts);
+                    
+                    generated_tuples++;
+                }
+                auto offset = (timestamp_distribution(generator1) + 1);
+                next_ts += offset;
+            }
+            sent_tuples.fetch_add(generated_tuples); // save the number of generated tuples
         }
-        sent_tuples.fetch_add(generated_tuples); // save the number of generated tuples
     }
 
     // Destructor

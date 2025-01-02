@@ -27,13 +27,15 @@ int main(int argc, char *argv[])
     size_t key_buff; // Buffer size of fragment
     size_t shared = 0;
     size_t batch_size = 16;
+    size_t cache_capacity = 0;
+    size_t skewed = 0;
     // arguments from command line
-    if (argc != 19)
+    if (argc != 23)
     {
-        cout << argv[0] << " -y SharedDb(0 false 1 true) -x Size Buffer Key -r [0 -> CB_INC_NORMAL , 1-> CB_P_INC, 2->CB_NON_INC_NORMAL, 3->CB_P_NON_INC, 4 -> TB_INC_NORMAL , 5-> TB_P_INC, 6->TB_NONINC_NORMAL, 7->TB_P_NONINC] -l [N MemTable] -k [n_keys] -w [MemTable Size] -s [Parallelism of each operator replica]" << endl;
+        cout << argv[0] << " -y SharedDb(0 false 1 true) -x Size Buffer Key -r [0 -> CB_INC_NORMAL , 1-> CB_P_INC, 2->CB_NON_INC_NORMAL, 3->CB_P_NON_INC, 4 -> TB_INC_NORMAL , 5-> TB_P_INC, 6->TB_NONINC_NORMAL, 7->TB_P_NONINC] -l [N MemTable] -k [n_keys] -w [MemTable Size] -s [Parallelism of each operator replica] -c [Cache capacity of window replica (0 for no cache)] -j [Source skewed (0 false 1 true)]" << endl;
         exit(EXIT_SUCCESS);
     }
-    while ((option = getopt(argc, argv, "y:x:r:l:k:m:p:w:s:")) != -1)
+    while ((option = getopt(argc, argv, "y:x:r:l:k:m:p:w:s:c:j:")) != -1)
     {
         switch (option)
         {
@@ -64,9 +66,15 @@ int main(int argc, char *argv[])
         case 's':
             win_slide = atoi(optarg);
             break;
+        case 'c':
+            cache_capacity = atoi(optarg);
+            break;
+        case 'j':
+            skewed = atoi(optarg);
+            break;
         default:
         {
-            cout << argv[0] << " -y SharedDb(0 false 1 true) -x Size Buffer Key -r [0 -> CB_INC_NORMAL , 1-> CB_P_INC, 2->CB_NON_INC_NORMAL, 3->CB_P_NON_INC, 4 -> TB_INC_NORMAL , 5-> TB_P_INC, 6->TB_NONINC_NORMAL, 7->TB_P_NONINC] -l [N MemTable] -k [n_keys] -m [MemTable Size] -p [Parallelism of each operator replica] -w [Window length in number of tuples or microseconds if TB] -s [Window slide]" << endl;
+        cout << argv[0] << " -y SharedDb(0 false 1 true) -x Size Buffer Key -r [0 -> CB_INC_NORMAL , 1-> CB_P_INC, 2->CB_NON_INC_NORMAL, 3->CB_P_NON_INC, 4 -> TB_INC_NORMAL , 5-> TB_P_INC, 6->TB_NONINC_NORMAL, 7->TB_P_NONINC] -l [N MemTable] -k [n_keys] -w [MemTable Size] -s [Parallelism of each operator replica] -c [Cache capacity of window replica (0 for no cache)] -j [Source skewed (0 false 1 true)]" << endl;
             exit(EXIT_SUCCESS);
         }
         }
@@ -117,7 +125,7 @@ int main(int argc, char *argv[])
     std::string RR = "X" + std::to_string(parallelism) + std::to_string(runs) + std::to_string(n_keys);
     PipeGraph graph("WindowTest", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
 
-    Source_Functor source_functor(app_start_time, 16, n_keys);
+    Source_Functor source_functor(app_start_time, 16, n_keys, skewed);
     Source source = Source_Builder(source_functor)
                         .withName("source")
                         .withParallelism(1)
@@ -235,6 +243,7 @@ int main(int argc, char *argv[])
                                     .setFragmentSize(key_buff)
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withOutputBatchSize(batch_size)
+                                    .withCacheCapacity(cache_capacity)
                                     .build();
         mp.add(kwins);
     }
