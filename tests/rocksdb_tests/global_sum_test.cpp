@@ -119,7 +119,8 @@ int main(int argc, char *argv[])
                                     .withParallelism(op_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
-                                    .setFragmentSize(key_buff);
+                                    .setFragmentSize(key_buff)
+                                    .withCacheCapacity(0);
 
         if (tb_win) builder = builder.withTBWindows(std::chrono::microseconds(win_len), std::chrono::microseconds(win_slide));
         else builder = builder.withCBWindows(win_len, win_slide);

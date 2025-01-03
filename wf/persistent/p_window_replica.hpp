@@ -218,18 +218,20 @@ public:
 
         auto min = _w1;
 
+        bool usable_cache = false;
+        window_buffer_t cached_window;
         if ( cache != nullptr ) {
             // e' presente la cache
             std::optional<window_buffer_t> cached_window_res = cache->get(_my_key);
             if (cached_window_res) {
                 // la finestra precedente è presente in cache, controllo se contiene tuple che si sovrappongono con la finestra corrente
-                window_buffer_t cached_window = *cached_window_res;
                 auto min_win = slide_len * lwid;
-                auto temp = cached_window.back();
+                auto temp = cached_window_res.value().back();
                 if (temp.index >= min_win) {
                     // la finestra si sovrappone con quella corrente, posso considerarla
                     min = temp;
-                    final_range.insert(final_range.end(), std::make_move_iterator(cached_window.begin()), std::make_move_iterator(cached_window.end()));
+                    usable_cache = true;
+                    cached_window = *cached_window_res;
                 }
             }
         }
@@ -250,6 +252,17 @@ public:
             }
         }
         std::sort(final_range.begin(), final_range.end(), compare_func); // sorting the archive before passing to the user function (NIC)
+
+        if (usable_cache)
+        {
+            // delete tuples from fragments and reatach last cached window, to resolve duplicates
+            final_range.erase(final_range.begin(),
+                std::find_if(final_range.begin(), final_range.end(),
+                    [&min](const wrapper_t& w) { return w.index > min.index; }));
+
+            final_range.insert(final_range.begin(), std::make_move_iterator(cached_window.begin()), std::make_move_iterator(cached_window.end()));
+        }
+
         return final_range;
     }
 
@@ -315,7 +328,6 @@ public:
         {
             cache = new LRUCache<key_t, window_buffer_t>(_cacheCapacity);
         } else {
-            std::cout << "No cache" << std::endl;
             cache = nullptr;
         }
     }
@@ -357,7 +369,6 @@ public:
         {
             cache = new LRUCache<key_t, window_buffer_t>(other_cache->capacity());
         } else {
-            std::cout << "No cache replica" << std::endl;
             cache = nullptr;
         }
     }
@@ -528,10 +539,14 @@ public:
                             its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
 
                             if (cache != nullptr) {
-                                // finestre overlapped, ha senso usare la cache
-                                cache->put(key, window_buffer_t(its.first, its.second));
+                                // metto solo la parte interessante per la finestra successiva
+                                auto min_idx = win.getLWID() * slide_len;
+                                auto start = std::find_if(history_buffer.begin(), history_buffer.end(),
+                                    [&min_idx](const wrapper_t& w) { return w.index >= min_idx; });
+                                cache->put(key, window_buffer_t(start, its.second));
                             }
                         }
+
                         Iterable<tuple_t> iter(its.first, its.second);
                         result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
                         if constexpr (isNonIncNonRiched) { // non-riched
