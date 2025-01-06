@@ -91,16 +91,12 @@ public:
             static thread_local std::mt19937 generator1;
             static thread_local std::mt19937 generator2;
             static thread_local std::mt19937 generator3;
+            static thread_local std::mt19937 generator4;
             std::uniform_int_distribution<size_t> timestamp_distribution(0, max_timestamp_offest);
-            std::uniform_int_distribution<size_t> keys_distribution(0, keys);
             std::uniform_int_distribution<size_t> tuple_value_distribution(0, max_value);
-            std::uniform_int_distribution<size_t> keys_set_distribution(keys/2, keys);
+            std::uniform_int_distribution<size_t> keys_set_distribution( 0.02*keys, 0.2*keys );
+            std::uniform_int_distribution<size_t> key_distribution(0, keys);
 
-            std::vector<size_t> all_keys(keys);
-            std::iota(all_keys.begin(), all_keys.end(), 0);
-
-            int iter=0;
-            int n;
             while (current_time - app_start_time <= app_run_time) // generation loop
             {
                 if ((batch_size > 0) && (generated_tuples % batch_size == 0))
@@ -113,15 +109,10 @@ public:
                 }
 
                 std::set<size_t> keys_to_send;
-                iter++;
-                if (iter%2 == 0) {
-                    // seconda iterazione
-                    keys_to_send.insert(all_keys.begin() + n, all_keys.end());
-                } else {
-                    // prima iterazione
-                    std::shuffle(all_keys.begin(), all_keys.end(), generator3);
-                    n = keys_set_distribution(generator3);
-                    keys_to_send.insert(all_keys.begin(), all_keys.begin() + n);
+                int extractions = keys_set_distribution(generator3);
+                for(int i = 0; i < extractions; i++)
+                {
+                    keys_to_send.insert(key_distribution(generator4));
                 }
 
                 auto value = tuple_value_distribution(generator2);
@@ -137,7 +128,7 @@ public:
                     
                     generated_tuples++;
                 }
-                auto offset = (timestamp_distribution(generator3) + 1);
+                auto offset = (timestamp_distribution(generator1) + 1);
                 next_ts += offset;
             }
             sent_tuples.fetch_add(generated_tuples); // save the number of generated tuples

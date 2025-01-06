@@ -26,7 +26,7 @@ for S in "${SLIDES[@]}"; do
     OUTPUT_FILE="output_${S}.log"
 
     # esecuzione programma
-    ./wtest -y 0 -x 64 -r 7 -l 1 -m 256 -p 4 -w 30000000 -s $S -k 10000 -c 1000 -j 1 > $OUTPUT_FILE 2>&1 &
+    ./wtest -y 0 -x 64 -r 7 -l 1 -m 256 -p 4 -w 30000000 -s $S -k 50000 -c 0 -j 1 > $OUTPUT_FILE 2>&1 &
     PID=$!
     CUR_PID=$PID
 
