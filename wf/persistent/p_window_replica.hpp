@@ -60,7 +60,7 @@
 #include<persistent/db_handle.hpp>
 #include<persistent/p_window_structure.hpp>
 
-#include<persistent/cache/LRUCache.hpp>
+#include<persistent/cache/LFUCache.hpp>
 
 namespace wf {
 
@@ -326,7 +326,7 @@ public:
         // creazione cache
         if ( (_cacheCapacity != 0) && (slide_len < win_len) ) 
         {
-            cache = new LRUCache<key_t, window_buffer_t>(_cacheCapacity);
+            cache = new LFUCache<key_t, window_buffer_t>(_cacheCapacity);
         } else {
             cache = nullptr;
         }
@@ -367,7 +367,7 @@ public:
         auto other_cache = _other.cache;
         if ( other_cache != nullptr ) 
         {
-            cache = new LRUCache<key_t, window_buffer_t>(other_cache->capacity());
+            cache = new LFUCache<key_t, window_buffer_t>(other_cache->capacity());
         } else {
             cache = nullptr;
         }
@@ -543,7 +543,10 @@ public:
                                 auto min_idx = win.getLWID() * slide_len;
                                 auto start = std::find_if(history_buffer.begin(), history_buffer.end(),
                                     [&min_idx](const wrapper_t& w) { return w.index >= min_idx; });
-                                cache->put(key, window_buffer_t(start, its.second));
+                                if (start != history_buffer.end() && start != its.second)
+                                {
+                                    cache->put(key, window_buffer_t(start, its.second));
+                                }
                             }
                         }
 

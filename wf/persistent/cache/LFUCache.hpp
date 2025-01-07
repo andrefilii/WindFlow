@@ -8,107 +8,104 @@
 template <typename Key, typename Value>
 class LFUCache : public Cache<Key, Value> {
 private:
-    struct CacheNode {
-        Key key;
-        Value value;
-        size_t frequency;
+    typedef size_t Frequency;
+    typedef std::pair<Frequency, Value> FrequencyValuePair;
+    typedef std::list<Key> KeyList;
+    typedef typename KeyList::iterator KeyListIt;
 
-        CacheNode(Key k, Value v, size_t freq) : key(k), value(v), frequency(freq) {}
-    };
+    typedef std::unordered_map<Frequency, KeyList> FrequencyListMap; // Mappa frequenza -> lista di chiavi
+    typedef std::unordered_map<Key, KeyListIt> KeyNodeMap; // Mappa chiave -> iteratore nella lista
+    typedef std::unordered_map<Key, FrequencyValuePair> EntryMap; // Mappa chiave -> (frequenza, valore)
 
-    typedef std::list<CacheNode> NodeList;
-    typedef typename NodeList::iterator NodeListIt;
+
 
     size_t maxCapacity;
     size_t minFrequency;
+    size_t currentSize;
 
-    // Mappa chiave -> nodo della lista
-    std::unordered_map<Key, NodeListIt> cacheMap;
-
-    // Mappa frequenza -> lista di nodi
-    std::unordered_map<size_t, NodeList> frequencyMap;
-
-    void updateFrequency(NodeListIt nodeIt) {
-        size_t freq = nodeIt->frequency;
-        frequencyMap[freq].erase(nodeIt);
-        if (frequencyMap[freq].empty()) {
-            frequencyMap.erase(freq);
-            if (minFrequency == freq) {
-                minFrequency++;
-            }
-        }
-        nodeIt->frequency++;
-        frequencyMap[nodeIt->frequency].push_front(*nodeIt);
-        cacheMap[nodeIt->key] = frequencyMap[nodeIt->frequency].begin();
-    }
+    FrequencyListMap frequencyList; // Mappa frequenza -> lista di chiavi
+    KeyNodeMap keyNode; // Mappa chiave -> iteratore
+    EntryMap frequency; // Mappa chiave -> (frequenza, valore)
 
 public:
-    explicit LFUCache(size_t capacity) : maxCapacity(capacity), minFrequency(0) {}
+    explicit LFUCache(size_t capacity) : maxCapacity(capacity), minFrequency(0), currentSize(0) {}
 
     void put(const Key& key, const Value& value) override {
-        if (maxCapacity == 0) return;
+        if (maxCapacity <= 0)
+            return; // Capacity is zero or negative, do nothing
 
-        auto it = cacheMap.find(key);
-        if (it != cacheMap.end()) {
-            auto nodeIt = it->second;
-            nodeIt->value = value;
-            updateFrequency(nodeIt);
+        if (keyNode.find(key) != keyNode.end()) {
+            // Key already exists, update its value and frequency
+            frequency[key].second = value;
+            get(key);
             return;
         }
 
-        if (cacheMap.size() >= maxCapacity) {
-            auto& list = frequencyMap[minFrequency];
-            auto lastNodeIt = list.back();
-            cacheMap.erase(lastNodeIt.key);
-            list.pop_back();
-            if (list.empty()) {
-                frequencyMap.erase(minFrequency);
-            }
+        if (currentSize == maxCapacity) {
+            // Cache is full, evict the least frequently used key
+            Key minFreqBack = frequencyList[minFrequency].back();
+            keyNode.erase(minFreqBack);
+            frequency.erase(minFreqBack);
+            frequencyList[minFrequency].pop_back();
+            currentSize--;
         }
 
+        // Add the new key to the cache
+        currentSize++;
         minFrequency = 1;
-        frequencyMap[minFrequency].emplace_front(key, value, minFrequency);
-        cacheMap[key] = frequencyMap[minFrequency].begin();
+        frequencyList[minFrequency].push_front(key);
+        keyNode[key] = frequencyList[minFrequency].begin();
+        frequency[key].first = 1, frequency[key].second = value;
     }
 
     std::optional<Value> get(const Key& key) override {
-        auto it = cacheMap.find(key);
-        if (it == cacheMap.end()) {
-            return std::nullopt;
-        }
-        auto nodeIt = it->second;
-        updateFrequency(nodeIt);
-        return nodeIt->value;
+        if (keyNode.find(key) == keyNode.end())
+            return std::nullopt; // Key not found
+
+        Frequency keyFreq = frequency[key].first;
+        frequencyList[keyFreq].erase(keyNode[key]);
+
+        frequency[key].first++;
+        frequencyList[frequency[key].first].push_front(key);
+        keyNode[key] = frequencyList[frequency[key].first].begin();
+
+        if (frequencyList[minFrequency].size() == 0)
+            minFrequency++; // Update minFrequency if the list is empty
+
+        return frequency[key].second; // Return the value of the key
     }
 
     bool exists(const Key& key) const override {
-        return cacheMap.find(key) != cacheMap.end();
+        return keyNode.find(key) != keyNode.end();
     }
 
     void remove(const Key& key) override {
-        auto it = cacheMap.find(key);
-        if (it != cacheMap.end()) {
-            auto nodeIt = it->second;
-            size_t freq = nodeIt->frequency;
-            frequencyMap[freq].erase(nodeIt);
-            if (frequencyMap[freq].empty()) {
-                frequencyMap.erase(freq);
-                if (minFrequency == freq) {
-                    minFrequency++;
-                }
-            }
-            cacheMap.erase(it);
+        if (keyNode.find(key) == keyNode.end()) {
+            return; // La chiave non esiste
         }
+
+        Frequency keyFreq = frequency[key].first;
+        frequencyList[keyFreq].erase(keyNode[key]);
+        frequency.erase(key);
+        keyNode.erase(key);
+
+        if (frequencyList[minFrequency].empty()) {
+            minFrequency++; // Aggiorna minFrequency se la lista è vuota
+        }
+
+        currentSize--; // Decrementa la dimensione della cache
     }
 
     void clear() override {
-        cacheMap.clear();
-        frequencyMap.clear();
+        frequencyList.clear();
+        keyNode.clear();
+        frequency.clear();
         minFrequency = 0;
+        currentSize = 0;
     }
 
     size_t size() const override {
-        return cacheMap.size();
+        return currentSize;
     }
 
     size_t capacity() const override {
