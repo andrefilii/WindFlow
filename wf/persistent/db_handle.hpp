@@ -227,19 +227,36 @@ public:
     }
 
     // Method to serialize a fragment key
+    // template<typename key_t>
+    // std::string key_serializer(key_t &_key, size_t _idx)
+    // {
+    //     if constexpr (std::is_same<key_t, std::string>::value) {
+    //         return _key + "_" + std::to_string(_idx);
+    //     }
+    //     else if constexpr (std::is_same<key_t, size_t>::value) {
+    //         return std::to_string(_key) + "_" + std::to_string(_idx);
+    //     }
+    //     else {
+    //         std::string new_key(sizeof(key_t) + sizeof(size_t), L'\0');
+    //         std::memcpy(&new_key[0], &_key, sizeof(key_t));
+    //         std::memcpy(&new_key[sizeof(key_t)], &_idx, sizeof(size_t));
+    //         return new_key;
+    //     }
+    // }
+
     template<typename key_t>
-    std::string key_serializer(key_t &_key, size_t _idx)
+    std::string key_serializer(key_t &_key, uint64_t _lwid)
     {
         if constexpr (std::is_same<key_t, std::string>::value) {
-            return _key + "_" + std::to_string(_idx);
+            return _key + "_" + std::to_string(_lwid);
         }
         else if constexpr (std::is_same<key_t, size_t>::value) {
-            return std::to_string(_key) + "_" + std::to_string(_idx);
+            return std::to_string(_key) + "_" + std::to_string(_lwid);
         }
         else {
             std::string new_key(sizeof(key_t) + sizeof(size_t), L'\0');
             std::memcpy(&new_key[0], &_key, sizeof(key_t));
-            std::memcpy(&new_key[sizeof(key_t)], &_idx, sizeof(size_t));
+            std::memcpy(&new_key[sizeof(key_t)], &_lwid, sizeof(size_t));
             return new_key;
         }
     }
@@ -370,19 +387,21 @@ public:
         return outputs;
     }
 
-    std::deque<wrapper_t> get_window(std::string &_key)
+    template<typename key_t>
+    std::deque<wrapper_t> get_window(key_t &_key, uint64_t _lwid)
     {
         std::string db_val;
         rocksdb::PinnableSlice pinnable_db_val(&db_val);
         std::deque<wrapper_t> outputs;
         rocksdb::Status key_status;
-        key_status = db->Get(read_options, db->DefaultColumnFamily(), _key, &pinnable_db_val);
+        auto db_key = key_serializer(_key, _lwid);
+        key_status = db->Get(read_options, db->DefaultColumnFamily(), db_key, &pinnable_db_val);
         if (key_status.ok()) {
             if (pinnable_db_val.IsPinned()) {
                 db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
             }
 #ifdef DEBUG_MODE
-            std::cout << "DB::get_window for key: " << _key << " VALUE:\n" << db_val << std::endl;
+            std::cout << "DB::get_window for key: " << db_key << " VALUE:\n" << db_val << std::endl;
 #endif
             outputs = wrapper_list_deserializer(db_val);
         }
@@ -416,10 +435,11 @@ public:
         db->Merge(write_options, _key, serialize(_val));
     }
 
+    template<typename key_t>
     // Method to put a value represented by a deque of objects of type wrapper_t associated with a fragment key
-    void merge(std::deque<wrapper_t> &_val, std::string &_key)
+    void merge(std::deque<wrapper_t> &_val, key_t &_key, uint64_t _lwid)
     {
-        db->Merge(write_options, _key, wrapper_list_serializer(_val));
+        db->Merge(write_options, key_serializer(_key, _lwid), wrapper_list_serializer(_val));
     }
 
     // Method to put a value represented by a deque of objects of type T associated with a stream key
@@ -428,17 +448,11 @@ public:
         db->Merge(write_options, _key, T_list_serializer(_val));
     }
 
-    // Method to delete a specific key in the db FOR WINDOW SOLUTION
-    void delete_key(std::string &_key)
-    {
-        db->Delete(write_options, _key);
-    }
-
-    // Method to delete a fragment key
     template<typename key_t>
-    void delete_key(key_t &_key, size_t _idx)
+    // Method to delete a specific key in the db FOR WINDOW SOLUTION
+    void delete_key(key_t &_key, uint64_t _lwid)
     {
-        db->Delete(write_options, key_serializer(_key, _idx));
+        db->Delete(write_options, key_serializer(_key, _lwid));
     }
 
     // Method to serialize the internal state of type T

@@ -95,7 +95,7 @@ private:
 
     struct Key_Descriptor // struct of a key descriptor
     {
-        std::unordered_map<std::string, std::deque<wrapper_t>> buffer_map; /* FOR WINDOWS SOLUTION */
+        std::unordered_map<uint64_t, std::deque<wrapper_t>> buffer_map; /* FOR WINDOWS SOLUTION */
         std::vector<win_t> wins; // open windows of this key
         std::deque<result_t> res_wins; // results of open windows of this key
         uint64_t next_lwid = 0; // next window to be opened of this key (lwid)
@@ -118,13 +118,6 @@ private:
     bool sort_enabled = false; // true if the user wants the tuple of a window to be sorted
 
 public:
-
-/* WINDOWS SOLUTION */
-    std::string key_db_extr(const uint64_t &lwid, key_t &_my_key)
-    {
-        return std::to_string(_my_key) + "_" + std::to_string(lwid);
-    }
-
 
     //method to get the windows of the tuple based on the timestamp
     std::vector<uint64_t> get_tuple_windows(wrapper_t wt)
@@ -168,9 +161,7 @@ public:
 #endif
         for(auto window : windows)
         {
-            std::string key = key_db_extr(window, _my_key);
-            
-            std::deque<wrapper_t> &buffer = _kd.buffer_map[key];
+            std::deque<wrapper_t> &buffer = _kd.buffer_map[window];
 #ifdef DEBUG_MODE
             std::cout << "PW::insert key->" << key << " buffer_size_BEFORE->" << buffer.size() << std::endl;
 #endif
@@ -178,7 +169,7 @@ public:
 #ifdef DEBUG_MODE
                 std::cout << "PW::insert FLUSH for key " << key << std::endl;
 #endif
-                mydb_wrappers->merge(buffer, key);
+                mydb_wrappers->merge(buffer, _my_key, window);
                 buffer.clear();
             }
             buffer.push_back(std::move(_wt));
@@ -201,12 +192,10 @@ public:
 
         for(auto window : windows)
         {
-            std::string key = key_db_extr(window, _my_key);
-            
-            std::deque<wrapper_t> &buffer = _kd.buffer_map[key];
+            std::deque<wrapper_t> &buffer = _kd.buffer_map[window];
 
             if (buffer.size() + 1 > n_max_elements) {
-                mydb_wrappers->merge(buffer, key);
+                mydb_wrappers->merge(buffer, _my_key, window);
                 buffer.clear();
             }
             buffer.push_back(_wt);
@@ -218,10 +207,8 @@ public:
                Key_Descriptor &_kd,
                key_t &_my_key)
     {
-        // create the key to use to identify the window
-        std::string key = key_db_extr(_lwid, _my_key);
         // get the buffer associated with the window
-        bool erased = _kd.buffer_map.erase(key) != 0;
+        bool erased = _kd.buffer_map.erase(_lwid) != 0;
         if (erased)
         {
 #ifdef DEBUG_MODE
@@ -229,7 +216,7 @@ public:
 #endif
         }
 
-        mydb_wrappers->delete_key(key);
+        mydb_wrappers->delete_key(_my_key, _lwid);
     }
 
 
@@ -238,10 +225,8 @@ public:
         // deque for the response
         std::deque<wrapper_t> final_range;
 
-        // create the key to use to identify the window
-        std::string key = key_db_extr(_lwid, _my_key);
         // get the buffer associated with the window
-        auto it = _kd.buffer_map.find(key);
+        auto it = _kd.buffer_map.find(_lwid);
         if (it != _kd.buffer_map.end() && !it->second.empty())
         {
             // if the buffer exists and contains something add the elements in the response
@@ -255,7 +240,7 @@ public:
 #endif
         }
         // get the window saved on the db and insert the tuples in the response
-        std::deque<wrapper_t> to_push = mydb_wrappers->get_window(key);
+        std::deque<wrapper_t> to_push = mydb_wrappers->get_window(_my_key, _lwid);
         final_range.insert(final_range.end(), std::make_move_iterator(to_push.begin()), std::make_move_iterator(to_push.end()));
         if (sort_enabled)
         {
@@ -277,9 +262,7 @@ public:
                             Key_Descriptor &_kd, 
                             key_t &_my_key)
     {
-        std::string key = key_db_extr(_lwid, _my_key);
-
-        auto it = _kd.buffer_map.find(key);
+        auto it = _kd.buffer_map.find(_lwid);
         if (it != _kd.buffer_map.end())
         {
             // buffer exists, return the end
