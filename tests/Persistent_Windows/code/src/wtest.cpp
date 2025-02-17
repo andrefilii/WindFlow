@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     // arguments from command line
     if (argc != 23)
     {
-        cout << argv[0] << " -y SharedDb(0 false 1 true) -x Size Buffer Key -r [0 -> CB_INC_NORMAL , 1-> CB_P_INC, 2->CB_NON_INC_NORMAL, 3->CB_P_NON_INC, 4 -> TB_INC_NORMAL , 5-> TB_P_INC, 6->TB_NONINC_NORMAL, 7->TB_P_NONINC] -l [N MemTable] -k [n_keys] -w [MemTable Size] -s [Parallelism of each operator replica] -c [Cache capacity of window replica (0 for no cache)] -j [Source skewed (0 false 1 true)]" << endl;
+        cout << argv[0] << " -y [SharedDb(0 false 1 true)] -x [Buffer Size] -r [0 -> CB_INC_NORMAL , 1-> CB_P_INC, 2->CB_NON_INC_NORMAL, 3->CB_P_NON_INC, 4 -> TB_INC_NORMAL , 5-> TB_P_INC, 6->TB_NONINC_NORMAL, 7->TB_P_NONINC] -l [N MemTable] -m [MemTable Size] -k [Number of Keys] -p [Parallelism of each operator replica] -w [Window Length] -s [Window Slide] -c [Cache capacity of window replica (0 for no cache)] -j [Source skewed (0 false 1 true)]" << endl;
         exit(EXIT_SUCCESS);
     }
     while ((option = getopt(argc, argv, "y:x:r:l:k:m:p:w:s:c:j:")) != -1)
